@@ -1,6 +1,54 @@
 import OpenAI from "openai";
-import { Pinecone } from "@pinecone-database/pinecone";
+import { createRequire } from "node:module";
 import type { DocumentRecord, ProviderConfig } from "./types";
+
+type PineconeRecordMetadata = Record<string, unknown>;
+
+type PineconeIndexDescription = {
+  host?: string;
+};
+
+type PineconeQueryMatch = {
+  score?: number;
+  metadata?: PineconeRecordMetadata;
+};
+
+type PineconeQueryResponse = {
+  matches?: PineconeQueryMatch[];
+};
+
+type PineconeVectorRecord = {
+  id: string;
+  values: number[];
+  metadata: PineconeRecordMetadata;
+};
+
+type PineconeNamespace = {
+  upsert(records: PineconeVectorRecord[]): Promise<void>;
+  deleteMany(options: string[]): Promise<void>;
+  query(options: {
+    topK: number;
+    vector: number[];
+    includeMetadata: boolean;
+    filter?: PineconeRecordMetadata;
+  }): Promise<PineconeQueryResponse>;
+};
+
+type PineconeIndexHandle = {
+  namespace(namespace: string): PineconeNamespace;
+};
+
+type PineconeClient = {
+  describeIndex(indexName: string): Promise<PineconeIndexDescription>;
+  index(indexName: string, host?: string): PineconeIndexHandle;
+};
+
+type PineconeConstructor = new (options: { apiKey: string }) => PineconeClient;
+
+const require = createRequire(import.meta.url);
+const { Pinecone } = require("@pinecone-database/pinecone") as {
+  Pinecone: PineconeConstructor;
+};
 
 export type ChunkMatch = {
   id: number;
@@ -197,7 +245,7 @@ export const queryAccessibleChunks = async (
   });
 
   return (queryResponse.matches || [])
-    .map((match, index) => ({
+    .map((match: PineconeQueryMatch, index: number) => ({
       id: index + 1,
       content: String(match.metadata?.text || ""),
       score: Number((match.score || 0).toFixed(4)),
@@ -205,7 +253,7 @@ export const queryAccessibleChunks = async (
       documentId: String(match.metadata?.documentId || ""),
       title: String(match.metadata?.title || "Document")
     }))
-    .filter((chunk) => chunk.content) satisfies ChunkMatch[];
+    .filter((chunk: ChunkMatch) => chunk.content) satisfies ChunkMatch[];
 };
 
 export const generateAnswer = async (

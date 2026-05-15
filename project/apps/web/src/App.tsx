@@ -35,6 +35,8 @@ type DocumentSummary = {
 
 type RagConfigSummary = {
   configured: boolean;
+  openAiApiKey: string | null;
+  pineconeApiKey: string | null;
   pineconeIndex: string | null;
   pineconeHost: string | null;
   embeddingModel: string | null;
@@ -85,6 +87,8 @@ type DashboardContextValue = {
 
 const EMPTY_RAG_CONFIG: RagConfigSummary = {
   configured: false,
+  openAiApiKey: null,
+  pineconeApiKey: null,
   pineconeIndex: null,
   pineconeHost: null,
   embeddingModel: null,
@@ -344,8 +348,14 @@ function DashboardLayout({
 
 function RagPage() {
   const { user, ragConfig, setRagConfig, resetAuth } = useDashboardContext();
-  const [openAiApiKey, setOpenAiApiKey] = useState("");
-  const [pineconeApiKey, setPineconeApiKey] = useState("");
+  const [showOpenAiApiKey, setShowOpenAiApiKey] = useState(false);
+  const [showPineconeApiKey, setShowPineconeApiKey] = useState(false);
+  const [openAiApiKey, setOpenAiApiKey] = useState(
+    ragConfig.openAiApiKey || ""
+  );
+  const [pineconeApiKey, setPineconeApiKey] = useState(
+    ragConfig.pineconeApiKey || ""
+  );
   const [pineconeIndex, setPineconeIndex] = useState(
     ragConfig.pineconeIndex || ""
   );
@@ -366,6 +376,15 @@ function RagPage() {
   const [error, setError] = useState<string | null>(null);
   const [isConfiguring, setIsConfiguring] = useState(false);
   const [isQuerying, setIsQuerying] = useState(false);
+
+  useEffect(() => {
+    setOpenAiApiKey(ragConfig.openAiApiKey || "");
+    setPineconeApiKey(ragConfig.pineconeApiKey || "");
+    setPineconeIndex(ragConfig.pineconeIndex || "");
+    setPineconeHost(ragConfig.pineconeHost || "");
+    setEmbeddingModel(ragConfig.embeddingModel || "text-embedding-3-small");
+    setChatModel(ragConfig.chatModel || "gpt-4.1-mini");
+  }, [ragConfig]);
 
   const handleUnauthorized = (error: unknown) => {
     if (error instanceof ApiError && error.status === 401) {
@@ -396,8 +415,6 @@ function RagPage() {
       );
       setRagConfig(payload.ragConfig);
       setMessage("Configuration RAG mise à jour côté backend.");
-      setOpenAiApiKey("");
-      setPineconeApiKey("");
     } catch (error) {
       handleUnauthorized(error);
       setError(
@@ -461,20 +478,38 @@ function RagPage() {
             <div className="config-grid">
               <label className="field">
                 <span>Clé OpenAI</span>
-                <input
-                  type="password"
-                  value={openAiApiKey}
-                  onChange={(event) => setOpenAiApiKey(event.target.value)}
-                />
+                <div className="secret-field">
+                  <input
+                    type={showOpenAiApiKey ? "text" : "password"}
+                    value={openAiApiKey}
+                    onChange={(event) => setOpenAiApiKey(event.target.value)}
+                  />
+                  <button
+                    className="toggle-visibility-button"
+                    onClick={() => setShowOpenAiApiKey((current) => !current)}
+                    type="button"
+                  >
+                    {showOpenAiApiKey ? "Masquer" : "Afficher"}
+                  </button>
+                </div>
               </label>
 
               <label className="field">
                 <span>Clé Pinecone</span>
-                <input
-                  type="password"
-                  value={pineconeApiKey}
-                  onChange={(event) => setPineconeApiKey(event.target.value)}
-                />
+                <div className="secret-field">
+                  <input
+                    type={showPineconeApiKey ? "text" : "password"}
+                    value={pineconeApiKey}
+                    onChange={(event) => setPineconeApiKey(event.target.value)}
+                  />
+                  <button
+                    className="toggle-visibility-button"
+                    onClick={() => setShowPineconeApiKey((current) => !current)}
+                    type="button"
+                  >
+                    {showPineconeApiKey ? "Masquer" : "Afficher"}
+                  </button>
+                </div>
               </label>
 
               <label className="field">

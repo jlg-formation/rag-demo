@@ -70,6 +70,8 @@ const toRagSettingsSummary = (settings: RagSettingsRecord | null) =>
   settings
     ? {
         configured: true,
+        openAiApiKey: settings.openAiApiKey,
+        pineconeApiKey: settings.pineconeApiKey,
         pineconeIndex: settings.pineconeIndex,
         pineconeHost: settings.pineconeHost || null,
         embeddingModel: settings.embeddingModel,
@@ -80,6 +82,8 @@ const toRagSettingsSummary = (settings: RagSettingsRecord | null) =>
       }
     : {
         configured: false,
+        openAiApiKey: null,
+        pineconeApiKey: null,
         pineconeIndex: null,
         pineconeHost: null,
         embeddingModel: null,

@@ -275,6 +275,27 @@ select {
   color: #14304a;
 }
 
+.secret-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.toggle-visibility-button {
+  border: 1px solid rgba(20, 48, 74, 0.12);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #264864;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.toggle-visibility-button:hover {
+  background: rgba(20, 48, 74, 0.08);
+}
+
 .config-grid,
 .status-grid {
   display: grid;
