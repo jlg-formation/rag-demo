@@ -1,330 +1,415 @@
 import { cors } from "@elysiajs/cors";
 import { Elysia, t } from "elysia";
-import OpenAI from "openai";
-import { Pinecone } from "@pinecone-database/pinecone";
+import {
+  DEFAULT_CHAT_MODEL,
+  DEFAULT_EMBEDDING_MODEL,
+  PINECONE_NAMESPACE,
+  deleteDocumentVectors,
+  generateAnswer,
+  indexDocumentInPinecone,
+  queryAccessibleChunks
+} from "./rag";
+import {
+  buildExpiredSessionCookie,
+  buildSessionCookie,
+  getSessionIdFromCookieHeader,
+  isSpinalCase,
+  normalizeEmail,
+  verifyPassword
+} from "./security";
+import { DataStore } from "./store";
+import type {
+  DocumentRecord,
+  ProviderConfig,
+  RagSettingsRecord,
+  UserRecord
+} from "./types";
 
-type ChunkMatch = {
-  content: string;
-  score: number;
-  id: number;
+const store = await DataStore.create();
+
+const handleError = (error: unknown) =>
+  error instanceof Error
+    ? error.message
+    : "Une erreur inattendue est survenue.";
+
+type ResponseSet = {
+  status?: number | string;
 };
 
-type SessionConfig = {
-  openAiApiKey: string;
-  pineconeApiKey: string;
-  pineconeIndex: string;
-  pineconeHost?: string;
-  embeddingModel: string;
-  chatModel: string;
-  activeNamespace?: string;
-};
+const toUserSummary = (user: UserRecord) => ({
+  email: user.email,
+  displayName: user.displayName,
+  groups: user.groups,
+  isAdmin: user.groups.includes("admin"),
+  createdAt: user.createdAt
+});
 
-const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
-const DEFAULT_CHAT_MODEL = "gpt-4.1-mini";
-const sessionConfigs = new Map<string, SessionConfig>();
+const toDocumentSummary = (document: DocumentRecord) => ({
+  id: document.id,
+  title: document.title,
+  group: document.group,
+  sourceText: document.sourceText,
+  chunkCount: document.chunkCount,
+  createdAt: document.createdAt,
+  createdBy: document.createdBy
+});
 
-const STOP_WORDS = new Set([
-  "a",
-  "ai",
-  "au",
-  "aux",
-  "avec",
-  "ce",
-  "ces",
-  "dans",
-  "de",
-  "des",
-  "du",
-  "elle",
-  "en",
-  "et",
-  "est",
-  "il",
-  "je",
-  "la",
-  "le",
-  "les",
-  "leur",
-  "mais",
-  "mes",
-  "ne",
-  "nos",
-  "notre",
-  "nous",
-  "ou",
-  "par",
-  "pas",
-  "pour",
-  "que",
-  "qui",
-  "sa",
-  "se",
-  "ses",
-  "son",
-  "sur",
-  "tes",
-  "toi",
-  "ton",
-  "tu",
-  "un",
-  "une",
-  "vos",
-  "votre",
-  "vous"
-]);
-
-const normalize = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const tokenize = (value: string) =>
-  normalize(value)
-    .split(" ")
-    .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
-
-const sanitizeNamespacePart = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 32) || "demo";
-
-const chunkDocument = (document: string, maxChunkLength = 320) => {
-  const paragraphs = document
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-
-  const chunks: string[] = [];
-  let buffer = "";
-
-  for (const paragraph of paragraphs) {
-    if (!buffer) {
-      buffer = paragraph;
-      continue;
-    }
-
-    if ((buffer + "\n\n" + paragraph).length <= maxChunkLength) {
-      buffer += `\n\n${paragraph}`;
-      continue;
-    }
-
-    chunks.push(buffer);
-    buffer = paragraph;
-  }
-
-  if (buffer) {
-    chunks.push(buffer);
-  }
-
-  return chunks.flatMap((chunk) => {
-    if (chunk.length <= maxChunkLength) {
-      return [chunk];
-    }
-
-    const sentences = chunk
-      .split(/(?<=[.!?])\s+/)
-      .map((sentence) => sentence.trim())
-      .filter(Boolean);
-
-    const smallerChunks: string[] = [];
-    let sentenceBuffer = "";
-
-    for (const sentence of sentences) {
-      const candidate = sentenceBuffer
-        ? `${sentenceBuffer} ${sentence}`
-        : sentence;
-      if (candidate.length <= maxChunkLength) {
-        sentenceBuffer = candidate;
-        continue;
+const toRagSettingsSummary = (settings: RagSettingsRecord | null) =>
+  settings
+    ? {
+        configured: true,
+        pineconeIndex: settings.pineconeIndex,
+        pineconeHost: settings.pineconeHost || null,
+        embeddingModel: settings.embeddingModel,
+        chatModel: settings.chatModel,
+        updatedAt: settings.updatedAt,
+        updatedBy: settings.updatedBy,
+        namespace: settings.namespace
       }
+    : {
+        configured: false,
+        pineconeIndex: null,
+        pineconeHost: null,
+        embeddingModel: null,
+        chatModel: null,
+        updatedAt: null,
+        updatedBy: null,
+        namespace: null
+      };
 
-      if (sentenceBuffer) {
-        smallerChunks.push(sentenceBuffer);
-      }
-      sentenceBuffer = sentence;
-    }
+const getAuthenticatedUser = async (request: Request) => {
+  await store.purgeExpiredSessions();
+  const sessionId = getSessionIdFromCookieHeader(request.headers.get("cookie"));
 
-    if (sentenceBuffer) {
-      smallerChunks.push(sentenceBuffer);
-    }
-
-    return smallerChunks;
-  });
-};
-
-const scoreChunk = (questionTokens: string[], chunk: string): number => {
-  const chunkTokens = new Set(tokenize(chunk));
-  if (!chunkTokens.size) {
-    return 0;
+  if (!sessionId) {
+    return null;
   }
 
-  const overlap = questionTokens.filter((token) =>
-    chunkTokens.has(token)
-  ).length;
-  const densityBoost = overlap / Math.max(chunkTokens.size, 1);
-  return overlap * 10 + densityBoost;
+  const session = store.getSessionById(sessionId);
+  if (!session) {
+    return null;
+  }
+
+  const user = store.getUserByEmail(session.userEmail);
+  if (!user) {
+    await store.deleteSession(session.id);
+    return null;
+  }
+
+  return {
+    session,
+    user,
+    isAdmin: user.groups.includes("admin")
+  };
 };
 
-const createOpenAIClient = (apiKey: string) => new OpenAI({ apiKey });
-
-const createPineconeIndex = (config: SessionConfig) => {
-  const client = new Pinecone({ apiKey: config.pineconeApiKey });
-
-  return config.pineconeHost
-    ? client.index(config.pineconeIndex, config.pineconeHost)
-    : client.index(config.pineconeIndex);
-};
-
-const getSessionConfig = (sessionId: string) => sessionConfigs.get(sessionId);
-
-const buildNamespace = (sessionId: string) =>
-  `${sanitizeNamespacePart("rag-demo")}-${sanitizeNamespacePart(
-    sessionId.slice(0, 8)
-  )}-${Date.now().toString(36)}`;
-
-const embedTexts = async (config: SessionConfig, inputs: string[]) => {
-  const openai = createOpenAIClient(config.openAiApiKey);
-  const response = await openai.embeddings.create({
-    model: config.embeddingModel,
-    input: inputs
-  });
-
-  return response.data.map((item) => item.embedding);
-};
-
-const generateAnswer = async (
-  config: SessionConfig,
-  question: string,
-  retrievedChunks: ChunkMatch[]
+const unauthorized = (
+  set: ResponseSet,
+  message = "Authentification requise."
 ) => {
-  if (!retrievedChunks.length) {
-    return "Je n'ai trouvé aucun passage pertinent dans Pinecone pour cette question.";
-  }
-
-  const openai = createOpenAIClient(config.openAiApiKey);
-  const contextBlock = retrievedChunks
-    .map(
-      (chunk) =>
-        `[Source ${chunk.id} | score ${chunk.score.toFixed(3)}]\n${chunk.content}`
-    )
-    .join("\n\n");
-
-  const completion = await openai.chat.completions.create({
-    model: config.chatModel,
-    temperature: 0.2,
-    messages: [
-      {
-        role: "system",
-        content:
-          "Tu es un assistant RAG. Réponds en français. Utilise uniquement le contexte fourni. Si l'information est absente, dis-le explicitement. Cite les sources sous la forme [Source X] dans la réponse."
-      },
-      {
-        role: "user",
-        content: `Question: ${question}\n\nContexte:\n${contextBlock}`
-      }
-    ]
-  });
-
-  return (
-    completion.choices[0]?.message?.content?.trim() ||
-    "Le modèle n'a pas renvoyé de contenu exploitable."
-  );
+  set.status = 401;
+  return { error: message };
 };
 
-const handleError = (error: unknown) => {
-  if (error instanceof Error) {
-    return error.message;
+const forbidden = (set: ResponseSet, message = "Acces interdit.") => {
+  set.status = 403;
+  return { error: message };
+};
+
+const notFound = (set: ResponseSet, message: string) => {
+  set.status = 404;
+  return { error: message };
+};
+
+const badRequest = (set: ResponseSet, message: string) => {
+  set.status = 400;
+  return { error: message };
+};
+
+const conflict = (set: ResponseSet, message: string) => {
+  set.status = 409;
+  return { error: message };
+};
+
+const requireConfiguredRag = (set: ResponseSet) => {
+  const settings = store.getRagSettings();
+  if (!settings) {
+    set.status = 409;
+    return { error: "Le backend RAG n'est pas encore configure." };
   }
 
-  return "Une erreur inattendue est survenue.";
+  return settings;
 };
 
 const app = new Elysia()
   .use(
     cors({
-      origin: true
+      origin: true,
+      credentials: true
     })
   )
   .get("/api/health", () => ({
     status: "ok",
-    configuredSessions: sessionConfigs.size
+    users: store.getUsers().length,
+    groups: store.getGroups().length,
+    documents: store.getDocuments().length,
+    ragConfigured: Boolean(store.getRagSettings())
   }))
-  .post(
-    "/api/configure",
-    ({ body, set }) => {
-      const sessionId = crypto.randomUUID();
-      sessionConfigs.set(sessionId, {
-        openAiApiKey: body.openAiApiKey,
-        pineconeApiKey: body.pineconeApiKey,
-        pineconeIndex: body.pineconeIndex,
-        pineconeHost: body.pineconeHost,
-        embeddingModel: body.embeddingModel || DEFAULT_EMBEDDING_MODEL,
-        chatModel: body.chatModel || DEFAULT_CHAT_MODEL
-      });
+  .get("/api/auth/me", async ({ request, set }) => {
+    const auth = await getAuthenticatedUser(request);
+    if (!auth) {
+      return unauthorized(set);
+    }
 
-      set.status = 201;
+    return {
+      user: toUserSummary(auth.user),
+      ragConfig: toRagSettingsSummary(store.getRagSettings())
+    };
+  })
+  .post(
+    "/api/auth/login",
+    async ({ body, set }) => {
+      if (!body.email.trim() || !body.password) {
+        return badRequest(set, "Les identifiants sont obligatoires.");
+      }
+
+      const user = store.getUserByEmail(body.email);
+
+      if (!user) {
+        return unauthorized(set, "Identifiants invalides.");
+      }
+
+      const isValidPassword = await verifyPassword(
+        body.password,
+        user.passwordHash
+      );
+      if (!isValidPassword) {
+        return unauthorized(set, "Identifiants invalides.");
+      }
+
+      const session = await store.createSession(user.email);
+      set.headers["Set-Cookie"] = buildSessionCookie(session.id);
+
       return {
-        sessionId,
-        config: {
-          pineconeIndex: body.pineconeIndex,
-          pineconeHost: body.pineconeHost || null,
-          embeddingModel: body.embeddingModel || DEFAULT_EMBEDDING_MODEL,
-          chatModel: body.chatModel || DEFAULT_CHAT_MODEL
-        }
+        user: toUserSummary(user),
+        ragConfig: toRagSettingsSummary(store.getRagSettings())
       };
     },
     {
       body: t.Object({
-        openAiApiKey: t.String({ minLength: 20 }),
-        pineconeApiKey: t.String({ minLength: 20 }),
-        pineconeIndex: t.String({ minLength: 3 }),
-        pineconeHost: t.Optional(t.String({ minLength: 1 })),
-        embeddingModel: t.Optional(t.String({ minLength: 3 })),
-        chatModel: t.Optional(t.String({ minLength: 3 }))
+        email: t.String(),
+        password: t.String()
       })
     }
   )
-  .post(
-    "/api/index",
-    async ({ body, set }) => {
-      const sessionConfig = getSessionConfig(body.sessionId);
+  .post("/api/auth/logout", async ({ request, set }) => {
+    const sessionId = getSessionIdFromCookieHeader(
+      request.headers.get("cookie")
+    );
 
-      if (!sessionConfig) {
-        set.status = 404;
-        return { error: "Session de configuration introuvable." };
+    if (sessionId) {
+      await store.deleteSession(sessionId);
+    }
+
+    set.headers["Set-Cookie"] = buildExpiredSessionCookie();
+    return { ok: true };
+  })
+  .get("/api/groups", async ({ request, set }) => {
+    const auth = await getAuthenticatedUser(request);
+    if (!auth) {
+      return unauthorized(set);
+    }
+
+    const groups = auth.isAdmin
+      ? store.getGroups()
+      : store
+          .getGroups()
+          .filter((group) => auth.user.groups.includes(group.name));
+
+    return { groups };
+  })
+  .post(
+    "/api/groups",
+    async ({ request, body, set }) => {
+      const auth = await getAuthenticatedUser(request);
+      if (!auth) {
+        return unauthorized(set);
+      }
+
+      if (!auth.isAdmin) {
+        return forbidden(
+          set,
+          "Seuls les administrateurs peuvent creer des groupes."
+        );
+      }
+
+      if (!body.name.trim()) {
+        return badRequest(set, "Le nom du groupe est obligatoire.");
+      }
+
+      if (!isSpinalCase(body.name)) {
+        return badRequest(
+          set,
+          "Le nom du groupe doit etre strictement en spinal-case."
+        );
       }
 
       try {
-        const chunks = chunkDocument(body.documents);
-        const embeddings = await embedTexts(sessionConfig, chunks);
-        const namespace = buildNamespace(body.sessionId);
-        const index = createPineconeIndex(sessionConfig).namespace(namespace);
+        const group = await store.createGroup(body.name);
+        set.status = 201;
+        return { group };
+      } catch (error) {
+        return conflict(set, handleError(error));
+      }
+    },
+    {
+      body: t.Object({
+        name: t.String()
+      })
+    }
+  )
+  .get("/api/users", async ({ request, set }) => {
+    const auth = await getAuthenticatedUser(request);
+    if (!auth) {
+      return unauthorized(set);
+    }
 
-        await index.upsert(
-          chunks.map((content, index) => ({
-            id: `${body.sessionId}-${index + 1}-${Date.now().toString(36)}`,
-            values: embeddings[index],
-            metadata: {
-              text: content,
-              chunkIndex: index + 1,
-              tokenEstimate: tokenize(content).length
-            }
-          }))
+    if (!auth.isAdmin) {
+      return forbidden(
+        set,
+        "Seuls les administrateurs peuvent voir les comptes."
+      );
+    }
+
+    return {
+      users: store.getUsers().map((user) => toUserSummary(user))
+    };
+  })
+  .post(
+    "/api/users",
+    async ({ request, body, set }) => {
+      const auth = await getAuthenticatedUser(request);
+      if (!auth) {
+        return unauthorized(set);
+      }
+
+      if (!auth.isAdmin) {
+        return forbidden(
+          set,
+          "Seuls les administrateurs peuvent creer des comptes."
         );
+      }
 
-        sessionConfig.activeNamespace = namespace;
+      if (!body.email.trim() || !body.password) {
+        return badRequest(
+          set,
+          "L'identifiant et le mot de passe sont obligatoires."
+        );
+      }
 
-        return {
-          sessionId: body.sessionId,
-          namespace,
-          chunkCount: chunks.length,
-          embeddingModel: sessionConfig.embeddingModel
-        };
+      const uniqueGroups = Array.from(new Set(body.groups as string[]));
+      if (!uniqueGroups.length) {
+        return badRequest(
+          set,
+          "Un utilisateur doit appartenir a au moins un groupe."
+        );
+      }
+
+      if (uniqueGroups.some((group) => !store.hasGroup(group))) {
+        return badRequest(
+          set,
+          "Tous les groupes associes au compte doivent exister."
+        );
+      }
+
+      try {
+        const user = await store.createUser({
+          email: normalizeEmail(body.email),
+          password: body.password,
+          displayName: body.displayName,
+          groups: uniqueGroups
+        });
+        set.status = 201;
+        return { user: toUserSummary(user) };
+      } catch (error) {
+        return conflict(set, handleError(error));
+      }
+    },
+    {
+      body: t.Object({
+        email: t.String(),
+        password: t.String(),
+        displayName: t.Optional(t.String()),
+        groups: t.Array(t.String(), { minItems: 1 })
+      })
+    }
+  )
+  .get("/api/documents", async ({ request, set }) => {
+    const auth = await getAuthenticatedUser(request);
+    if (!auth) {
+      return unauthorized(set);
+    }
+
+    return {
+      documents: store
+        .getDocumentsForGroups(auth.user.groups)
+        .map((document) => toDocumentSummary(document))
+    };
+  })
+  .post(
+    "/api/documents",
+    async ({ request, body, set }) => {
+      const auth = await getAuthenticatedUser(request);
+      if (!auth) {
+        return unauthorized(set);
+      }
+
+      if (!body.title.trim() || !body.group.trim() || !body.sourceText.trim()) {
+        return badRequest(
+          set,
+          "Titre, groupe et contenu du document sont obligatoires."
+        );
+      }
+
+      if (!store.hasGroup(body.group)) {
+        return notFound(set, "Le groupe indique n'existe pas.");
+      }
+
+      if (!auth.user.groups.includes(body.group)) {
+        return forbidden(
+          set,
+          "Vous ne pouvez indexer un document que pour un groupe auquel vous appartenez."
+        );
+      }
+
+      const ragSettings = requireConfiguredRag(set);
+      if ("error" in ragSettings) {
+        return ragSettings;
+      }
+
+      try {
+        const documentId = crypto.randomUUID();
+        const indexed = await indexDocumentInPinecone(ragSettings, {
+          id: documentId,
+          title: body.title.trim(),
+          group: body.group,
+          sourceText: body.sourceText,
+          createdBy: auth.user.email
+        });
+
+        const document = await store.createDocument({
+          id: documentId,
+          title: body.title.trim(),
+          group: body.group,
+          sourceText: body.sourceText,
+          chunkCount: indexed.chunkCount,
+          vectorIds: indexed.vectorIds,
+          createdAt: new Date().toISOString(),
+          createdBy: auth.user.email
+        });
+
+        set.status = 201;
+        return { document: toDocumentSummary(document) };
       } catch (error) {
         set.status = 500;
         return { error: handleError(error) };
@@ -332,50 +417,132 @@ const app = new Elysia()
     },
     {
       body: t.Object({
-        sessionId: t.String({ minLength: 3 }),
-        documents: t.String({ minLength: 20 })
+        title: t.String(),
+        group: t.String(),
+        sourceText: t.String()
+      })
+    }
+  )
+  .delete("/api/documents/:id", async ({ request, params, set }) => {
+    const auth = await getAuthenticatedUser(request);
+    if (!auth) {
+      return unauthorized(set);
+    }
+
+    const document = store.getDocumentById(params.id);
+    if (!document) {
+      return notFound(set, "Document introuvable.");
+    }
+
+    if (!auth.user.groups.includes(document.group)) {
+      return forbidden(
+        set,
+        "Vous ne pouvez supprimer que les documents de vos groupes."
+      );
+    }
+
+    const ragSettings = requireConfiguredRag(set);
+    if ("error" in ragSettings) {
+      return ragSettings;
+    }
+
+    try {
+      await deleteDocumentVectors(ragSettings, document.vectorIds);
+      await store.deleteDocument(document.id);
+      return { ok: true };
+    } catch (error) {
+      set.status = 500;
+      return { error: handleError(error) };
+    }
+  })
+  .get("/api/rag/config", async ({ request, set }) => {
+    const auth = await getAuthenticatedUser(request);
+    if (!auth) {
+      return unauthorized(set);
+    }
+
+    return {
+      ragConfig: toRagSettingsSummary(store.getRagSettings())
+    };
+  })
+  .post(
+    "/api/rag/configure",
+    async ({ request, body, set }) => {
+      const auth = await getAuthenticatedUser(request);
+      if (!auth) {
+        return unauthorized(set);
+      }
+
+      if (!auth.isAdmin) {
+        return forbidden(
+          set,
+          "Seuls les administrateurs peuvent configurer le backend RAG."
+        );
+      }
+
+      if (
+        !body.openAiApiKey.trim() ||
+        !body.pineconeApiKey.trim() ||
+        !body.pineconeIndex.trim()
+      ) {
+        return badRequest(
+          set,
+          "La configuration OpenAI et Pinecone est incomplete."
+        );
+      }
+
+      const settings = await store.setRagSettings({
+        openAiApiKey: body.openAiApiKey,
+        pineconeApiKey: body.pineconeApiKey,
+        pineconeIndex: body.pineconeIndex,
+        pineconeHost: body.pineconeHost,
+        embeddingModel: body.embeddingModel || DEFAULT_EMBEDDING_MODEL,
+        chatModel: body.chatModel || DEFAULT_CHAT_MODEL,
+        namespace: PINECONE_NAMESPACE,
+        updatedAt: new Date().toISOString(),
+        updatedBy: auth.user.email
+      });
+
+      return {
+        ragConfig: toRagSettingsSummary(settings)
+      };
+    },
+    {
+      body: t.Object({
+        openAiApiKey: t.String(),
+        pineconeApiKey: t.String(),
+        pineconeIndex: t.String(),
+        pineconeHost: t.Optional(t.String()),
+        embeddingModel: t.Optional(t.String()),
+        chatModel: t.Optional(t.String())
       })
     }
   )
   .post(
-    "/api/query",
-    async ({ body, set }) => {
-      const sessionConfig = getSessionConfig(body.sessionId);
-
-      if (!sessionConfig) {
-        set.status = 404;
-        return { error: "Session de configuration introuvable." };
+    "/api/rag/query",
+    async ({ request, body, set }) => {
+      const auth = await getAuthenticatedUser(request);
+      if (!auth) {
+        return unauthorized(set);
       }
 
-      if (!sessionConfig.activeNamespace) {
-        set.status = 409;
-        return {
-          error: "Aucun corpus n'a encore été indexé pour cette session."
-        };
+      if (!body.question.trim()) {
+        return badRequest(set, "La question est obligatoire.");
+      }
+
+      const ragSettings = requireConfiguredRag(set);
+      if ("error" in ragSettings) {
+        return ragSettings;
       }
 
       try {
-        const [questionEmbedding] = await embedTexts(sessionConfig, [
-          body.question
-        ]);
-        const queryResponse = await createPineconeIndex(sessionConfig)
-          .namespace(sessionConfig.activeNamespace)
-          .query({
-            topK: 4,
-            vector: questionEmbedding,
-            includeMetadata: true
-          });
-
-        const retrievedChunks: ChunkMatch[] = (queryResponse.matches || [])
-          .map((match, index) => ({
-            id: index + 1,
-            content: String(match.metadata?.text || ""),
-            score: Number((match.score || 0).toFixed(4))
-          }))
-          .filter((chunk) => chunk.content);
-
+        const retrievedChunks = await queryAccessibleChunks(
+          ragSettings,
+          body.question,
+          auth.user.groups
+        );
         const answer = await generateAnswer(
-          sessionConfig,
+          ragSettings,
           body.question,
           retrievedChunks
         );
@@ -383,10 +550,8 @@ const app = new Elysia()
         return {
           question: body.question,
           answer,
-          namespace: sessionConfig.activeNamespace,
-          chatModel: sessionConfig.chatModel,
-          embeddingModel: sessionConfig.embeddingModel,
-          retrievedChunks
+          retrievedChunks,
+          ragConfig: toRagSettingsSummary(ragSettings)
         };
       } catch (error) {
         set.status = 500;
@@ -395,8 +560,7 @@ const app = new Elysia()
     },
     {
       body: t.Object({
-        sessionId: t.String({ minLength: 3 }),
-        question: t.String({ minLength: 3 })
+        question: t.String()
       })
     }
   )
