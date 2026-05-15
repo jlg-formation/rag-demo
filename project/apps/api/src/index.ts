@@ -157,6 +157,84 @@ const requireConfiguredRag = (set: ResponseSet) => {
   return settings;
 };
 
+const ALLOWED_DOCUMENT_EXTENSIONS = new Set([".txt", ".md", ".markdown"]);
+
+const getFileExtension = (fileName: string) => {
+  const dotIndex = fileName.lastIndexOf(".");
+  return dotIndex >= 0 ? fileName.slice(dotIndex).toLowerCase() : "";
+};
+
+const normalizeDocumentTitle = (rawTitle: string) => {
+  const title = rawTitle.trim();
+  if (!title) {
+    return "";
+  }
+
+  return title.replace(/\.[^.]+$/, "").trim() || title;
+};
+
+const indexDocumentForUser = async (input: {
+  title: string;
+  group: string;
+  sourceText: string;
+  user: UserRecord;
+  set: ResponseSet;
+}) => {
+  const title = input.title.trim();
+  const group = input.group.trim();
+  const sourceText = input.sourceText.trim();
+
+  if (!title || !group || !sourceText) {
+    return badRequest(
+      input.set,
+      "Titre, groupe et contenu du document sont obligatoires."
+    );
+  }
+
+  if (!store.hasGroup(group)) {
+    return notFound(input.set, "Le groupe indique n'existe pas.");
+  }
+
+  if (!input.user.groups.includes(group)) {
+    return forbidden(
+      input.set,
+      "Vous ne pouvez indexer un document que pour un groupe auquel vous appartenez."
+    );
+  }
+
+  const ragSettings = requireConfiguredRag(input.set);
+  if ("error" in ragSettings) {
+    return ragSettings;
+  }
+
+  try {
+    const documentId = crypto.randomUUID();
+    const indexed = await indexDocumentInPinecone(ragSettings, {
+      id: documentId,
+      title,
+      group,
+      sourceText,
+      createdBy: input.user.email
+    });
+
+    const document = await store.createDocument({
+      id: documentId,
+      title,
+      group,
+      sourceText,
+      chunkCount: indexed.chunkCount,
+      vectorIds: indexed.vectorIds,
+      createdAt: new Date().toISOString(),
+      createdBy: input.user.email
+    });
+
+    return { document: toDocumentSummary(document) };
+  } catch (error) {
+    input.set.status = 500;
+    return { error: handleError(error) };
+  }
+};
+
 const app = new Elysia()
   .use(
     cors({
@@ -380,56 +458,19 @@ const app = new Elysia()
         return unauthorized(set);
       }
 
-      if (!body.title.trim() || !body.group.trim() || !body.sourceText.trim()) {
-        return badRequest(
-          set,
-          "Titre, groupe et contenu du document sont obligatoires."
-        );
-      }
+      const result = await indexDocumentForUser({
+        title: body.title,
+        group: body.group,
+        sourceText: body.sourceText,
+        user: auth.user,
+        set
+      });
 
-      if (!store.hasGroup(body.group)) {
-        return notFound(set, "Le groupe indique n'existe pas.");
-      }
-
-      if (!auth.user.groups.includes(body.group)) {
-        return forbidden(
-          set,
-          "Vous ne pouvez indexer un document que pour un groupe auquel vous appartenez."
-        );
-      }
-
-      const ragSettings = requireConfiguredRag(set);
-      if ("error" in ragSettings) {
-        return ragSettings;
-      }
-
-      try {
-        const documentId = crypto.randomUUID();
-        const indexed = await indexDocumentInPinecone(ragSettings, {
-          id: documentId,
-          title: body.title.trim(),
-          group: body.group,
-          sourceText: body.sourceText,
-          createdBy: auth.user.email
-        });
-
-        const document = await store.createDocument({
-          id: documentId,
-          title: body.title.trim(),
-          group: body.group,
-          sourceText: body.sourceText,
-          chunkCount: indexed.chunkCount,
-          vectorIds: indexed.vectorIds,
-          createdAt: new Date().toISOString(),
-          createdBy: auth.user.email
-        });
-
+      if ("document" in result) {
         set.status = 201;
-        return { document: toDocumentSummary(document) };
-      } catch (error) {
-        set.status = 500;
-        return { error: handleError(error) };
       }
+
+      return result;
     },
     {
       body: t.Object({
@@ -439,6 +480,59 @@ const app = new Elysia()
       })
     }
   )
+  .post("/api/documents/upload", async ({ request, set }) => {
+    const auth = await getAuthenticatedUser(request);
+    if (!auth) {
+      return unauthorized(set);
+    }
+
+    const formData = await request.formData();
+    const group = String(formData.get("group") || "").trim();
+    const files = formData
+      .getAll("files")
+      .filter((value): value is File => value instanceof File);
+
+    if (!group) {
+      return badRequest(set, "Le groupe est obligatoire.");
+    }
+
+    if (!files.length) {
+      return badRequest(set, "Au moins un fichier doit etre fourni.");
+    }
+
+    if (
+      files.some(
+        (file) => !ALLOWED_DOCUMENT_EXTENSIONS.has(getFileExtension(file.name))
+      )
+    ) {
+      return badRequest(
+        set,
+        "Seuls les fichiers texte, markdown et md sont acceptes."
+      );
+    }
+
+    const uploadedDocuments: ReturnType<typeof toDocumentSummary>[] = [];
+
+    for (const file of files) {
+      const sourceText = await file.text();
+      const result = await indexDocumentForUser({
+        title: normalizeDocumentTitle(file.name),
+        group,
+        sourceText,
+        user: auth.user,
+        set
+      });
+
+      if ("error" in result) {
+        return result;
+      }
+
+      uploadedDocuments.push(result.document);
+    }
+
+    set.status = 201;
+    return { documents: uploadedDocuments };
+  })
   .delete("/api/documents/:id", async ({ request, params, set }) => {
     const auth = await getAuthenticatedUser(request);
     if (!auth) {

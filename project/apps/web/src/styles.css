@@ -142,6 +142,9 @@ a {
 }
 
 .pipeline span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   background: #14304a;
   color: #fff9f2;
 }
@@ -182,6 +185,9 @@ a {
 }
 
 .sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 14px 16px;
   border-radius: 18px;
   background: rgba(20, 48, 74, 0.05);
@@ -264,6 +270,39 @@ a {
   color: #35556f;
 }
 
+.heading-with-icon,
+.button-content,
+.meta-line,
+.info-line,
+.banner-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.meta-line--wrap {
+  align-items: flex-start;
+}
+
+.heading-with-icon svg,
+.button-content svg,
+.meta-line svg,
+.info-line svg,
+.banner-with-icon svg,
+.sidebar-link svg,
+.pipeline span svg,
+.status-chip svg {
+  flex: 0 0 auto;
+}
+
+.button-content {
+  justify-content: center;
+}
+
+.button-content--compact {
+  gap: 8px;
+}
+
 input,
 textarea,
 select {
@@ -283,6 +322,8 @@ select {
 }
 
 .toggle-visibility-button {
+  display: inline-flex;
+  align-items: center;
   border: 1px solid rgba(20, 48, 74, 0.12);
   border-radius: 14px;
   padding: 12px 14px;
@@ -357,6 +398,7 @@ select {
 .status-chip {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   background: rgba(20, 48, 74, 0.08);
   color: #35556f;
 }
@@ -424,6 +466,63 @@ select {
   margin: 0;
 }
 
+.upload-dropzone {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border-radius: 20px;
+  border: 2px dashed rgba(180, 103, 25, 0.35);
+  background: rgba(255, 249, 239, 0.72);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.upload-dropzone.is-drag-active {
+  border-color: #da5f3f;
+  background: rgba(239, 141, 50, 0.12);
+  transform: translateY(-1px);
+}
+
+.upload-dropzone__title,
+.upload-dropzone__hint {
+  margin: 0;
+}
+
+.upload-dropzone__title {
+  font-weight: 700;
+  color: #14304a;
+}
+
+.upload-dropzone__button {
+  width: auto;
+  justify-self: start;
+}
+
+.section-divider {
+  height: 1px;
+  margin: 28px 0;
+  background: linear-gradient(
+    90deg,
+    rgba(20, 48, 74, 0.06),
+    rgba(20, 48, 74, 0.18),
+    rgba(20, 48, 74, 0.06)
+  );
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .hint-text,
 .error-banner,
 .success-banner,
@@ -431,6 +530,16 @@ select {
   margin-top: 16px;
   padding: 12px 14px;
   border-radius: 16px;
+}
+
+.hint-text,
+.error-banner,
+.success-banner,
+.empty-state,
+.answer-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .hint-text,
