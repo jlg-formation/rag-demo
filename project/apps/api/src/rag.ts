@@ -17,11 +17,40 @@ export const PINECONE_NAMESPACE = "rag-demo";
 
 const createOpenAIClient = (apiKey: string) => new OpenAI({ apiKey });
 
-const createPineconeNamespace = (config: ProviderConfig) => {
+export const resolvePineconeHost = async (
+  config: Pick<
+    ProviderConfig,
+    "pineconeApiKey" | "pineconeIndex" | "pineconeHost"
+  >
+) => {
+  if (config.pineconeHost) {
+    return config.pineconeHost;
+  }
+
+  try {
+    const client = new Pinecone({ apiKey: config.pineconeApiKey });
+    const indexDescription = await client.describeIndex(config.pineconeIndex);
+    return indexDescription.host;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Erreur Pinecone inconnue.";
+    throw new Error(
+      `Impossible de resoudre automatiquement le host Pinecone pour l'index ${config.pineconeIndex}. Reconfigurez le backend RAG avec le host Pinecone explicite. Detail: ${message}`
+    );
+  }
+};
+
+const createPineconeNamespace = async (config: ProviderConfig) => {
+  const indexHost = await resolvePineconeHost(config);
+
+  if (!indexHost) {
+    throw new Error(
+      `Impossible de resoudre le host Pinecone pour l'index ${config.pineconeIndex}.`
+    );
+  }
+
   const client = new Pinecone({ apiKey: config.pineconeApiKey });
-  const index = config.pineconeHost
-    ? client.index(config.pineconeIndex, config.pineconeHost)
-    : client.index(config.pineconeIndex);
+  const index = client.index(config.pineconeIndex, indexHost);
 
   return index.namespace(PINECONE_NAMESPACE);
 };
@@ -110,7 +139,7 @@ export const indexDocumentInPinecone = async (
 ) => {
   const chunks = chunkDocument(document.sourceText);
   const embeddings = await embedTexts(config, chunks);
-  const namespace = createPineconeNamespace(config);
+  const namespace = await createPineconeNamespace(config);
   const vectorIds = chunks.map(
     (_, index) => `${document.id}-chunk-${index + 1}`
   );
@@ -144,7 +173,8 @@ export const deleteDocumentVectors = async (
     return;
   }
 
-  await createPineconeNamespace(config).deleteMany(vectorIds);
+  const namespace = await createPineconeNamespace(config);
+  await namespace.deleteMany(vectorIds);
 };
 
 export const queryAccessibleChunks = async (
@@ -153,12 +183,13 @@ export const queryAccessibleChunks = async (
   allowedGroups: string[]
 ) => {
   const [questionEmbedding] = await embedTexts(config, [question]);
+  const namespace = await createPineconeNamespace(config);
   const filter =
     allowedGroups.length === 1
       ? { group: { $eq: allowedGroups[0] } }
       : { group: { $in: allowedGroups } };
 
-  const queryResponse = await createPineconeNamespace(config).query({
+  const queryResponse = await namespace.query({
     topK: 6,
     vector: questionEmbedding,
     includeMetadata: true,

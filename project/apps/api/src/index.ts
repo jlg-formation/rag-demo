@@ -7,7 +7,8 @@ import {
   deleteDocumentVectors,
   generateAnswer,
   indexDocumentInPinecone,
-  queryAccessibleChunks
+  queryAccessibleChunks,
+  resolvePineconeHost
 } from "./rag";
 import {
   buildExpiredSessionCookie,
@@ -31,6 +32,17 @@ const handleError = (error: unknown) =>
   error instanceof Error
     ? error.message
     : "Une erreur inattendue est survenue.";
+
+const isPineconeMissingResourceError = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    /pinecone/i.test(error.message) &&
+    /HTTP status 404|returned 404|status 404|not found/i.test(error.message)
+  );
+};
 
 type ResponseSet = {
   status?: number | string;
@@ -447,7 +459,14 @@ const app = new Elysia()
     }
 
     try {
-      await deleteDocumentVectors(ragSettings, document.vectorIds);
+      try {
+        await deleteDocumentVectors(ragSettings, document.vectorIds);
+      } catch (error) {
+        if (!isPineconeMissingResourceError(error)) {
+          throw error;
+        }
+      }
+
       await store.deleteDocument(document.id);
       return { ok: true };
     } catch (error) {
@@ -491,21 +510,36 @@ const app = new Elysia()
         );
       }
 
-      const settings = await store.setRagSettings({
-        openAiApiKey: body.openAiApiKey,
-        pineconeApiKey: body.pineconeApiKey,
-        pineconeIndex: body.pineconeIndex,
-        pineconeHost: body.pineconeHost,
-        embeddingModel: body.embeddingModel || DEFAULT_EMBEDDING_MODEL,
-        chatModel: body.chatModel || DEFAULT_CHAT_MODEL,
-        namespace: PINECONE_NAMESPACE,
-        updatedAt: new Date().toISOString(),
-        updatedBy: auth.user.email
-      });
+      try {
+        const pineconeHost = await resolvePineconeHost({
+          pineconeApiKey: body.pineconeApiKey,
+          pineconeIndex: body.pineconeIndex,
+          pineconeHost: body.pineconeHost
+        });
 
-      return {
-        ragConfig: toRagSettingsSummary(settings)
-      };
+        const settings = await store.setRagSettings({
+          openAiApiKey: body.openAiApiKey,
+          pineconeApiKey: body.pineconeApiKey,
+          pineconeIndex: body.pineconeIndex,
+          pineconeHost,
+          embeddingModel: body.embeddingModel || DEFAULT_EMBEDDING_MODEL,
+          chatModel: body.chatModel || DEFAULT_CHAT_MODEL,
+          namespace: PINECONE_NAMESPACE,
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.user.email
+        });
+
+        return {
+          ragConfig: toRagSettingsSummary(settings)
+        };
+      } catch (error) {
+        set.status = 500;
+        return {
+          error: body.pineconeHost?.trim()
+            ? handleError(error)
+            : `${handleError(error)} Fournissez explicitement le host Pinecone si l'index ne peut pas etre resolu automatiquement.`
+        };
+      }
     },
     {
       body: t.Object({
