@@ -49,13 +49,17 @@ export default function App() {
   const [pineconeIndex, setPineconeIndex] = useState("");
   const [pineconeHost, setPineconeHost] = useState("");
   const [chatModel, setChatModel] = useState("gpt-4.1-mini");
-  const [embeddingModel, setEmbeddingModel] = useState("text-embedding-3-small");
+  const [embeddingModel, setEmbeddingModel] = useState(
+    "text-embedding-3-small"
+  );
   const [documents, setDocuments] = useState(sampleDocuments);
   const [question, setQuestion] = useState(
     "Pourquoi le chunking est-il important dans un RAG ?"
   );
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [configuration, setConfiguration] = useState<ConfigureResponse["config"] | null>(null);
+  const [configuration, setConfiguration] = useState<
+    ConfigureResponse["config"] | null
+  >(null);
   const [indexSummary, setIndexSummary] = useState<IndexResponse | null>(null);
   const [result, setResult] = useState<QueryResponse | null>(null);
   const [isConfiguring, setIsConfiguring] = useState(false);
@@ -192,12 +196,15 @@ export default function App() {
     <main className="page-shell">
       <section className="hero-card">
         <p className="eyebrow">Démo RAG OpenAI + Pinecone</p>
-        <h1>Configurer les clés, indexer le corpus, puis interroger un vrai pipeline RAG</h1>
+        <h1>
+          Configurer les clés, indexer le corpus, puis interroger un vrai
+          pipeline RAG
+        </h1>
         <p className="hero-copy">
           Le frontend transmet les secrets au backend uniquement pour la session
-          courante. Le backend conserve cette configuration en mémoire, génère les
-          embeddings OpenAI, indexe les chunks dans Pinecone, puis interroge un
-          modèle de chat OpenAI avec le contexte récupéré.
+          courante. Le backend conserve cette configuration en mémoire, génère
+          les embeddings OpenAI, indexe les chunks dans Pinecone, puis interroge
+          un modèle de chat OpenAI avec le contexte récupéré.
         </p>
         <div className="pipeline">
           <span>Configuration</span>
@@ -211,7 +218,10 @@ export default function App() {
         <section className="panel stack-panel">
           <div className="panel-heading">
             <h2>1. Configuration backend</h2>
-            <p>Les clés sont envoyées depuis le frontend, mais conservées en mémoire côté serveur.</p>
+            <p>
+              Les clés sont envoyées depuis le frontend, mais conservées en
+              mémoire côté serveur.
+            </p>
           </div>
 
           <form className="subpanel" onSubmit={handleConfigure}>
@@ -273,13 +283,18 @@ export default function App() {
               </label>
             </div>
 
-            <button className="primary-button" disabled={isConfiguring} type="submit">
+            <button
+              className="primary-button"
+              disabled={isConfiguring}
+              type="submit"
+            >
               {isConfiguring ? "Configuration..." : "Configurer le backend"}
             </button>
           </form>
 
           <p className="hint-text">
-            Les secrets restent en mémoire du processus backend et ne sont pas sauvegardés dans le navigateur.
+            Les secrets restent en mémoire du processus backend et ne sont pas
+            sauvegardés dans le navigateur.
           </p>
 
           <div className="status-row">
@@ -295,7 +310,9 @@ export default function App() {
 
           <div className="panel-heading panel-heading--spaced">
             <h2>2. Corpus</h2>
-            <p>L’indexation crée un namespace Pinecone dédié à cette session.</p>
+            <p>
+              L’indexation crée un namespace Pinecone dédié à cette session.
+            </p>
           </div>
 
           <label className="field">
@@ -329,7 +346,10 @@ export default function App() {
         <form className="panel results-panel" onSubmit={handleSubmit}>
           <div className="panel-heading">
             <h2>3. Question</h2>
-            <p>La recherche vectorielle interroge Pinecone, puis le contexte est transmis à OpenAI.</p>
+            <p>
+              La recherche vectorielle interroge Pinecone, puis le contexte est
+              transmis à OpenAI.
+            </p>
           </div>
 
           <label className="field">
@@ -349,7 +369,10 @@ export default function App() {
 
           <div className="panel-heading">
             <h2>Résultat</h2>
-            <p>La réponse provient du modèle de chat ; les chunks ci-dessous viennent de Pinecone.</p>
+            <p>
+              La réponse provient du modèle de chat ; les chunks ci-dessous
+              viennent de Pinecone.
+            </p>
           </div>
 
           <article className="answer-card">
@@ -357,8 +380,12 @@ export default function App() {
             <p>{result?.answer ?? "Aucune requête envoyée pour le moment."}</p>
             {result ? (
               <div className="status-row">
-                <span className="status-chip is-neutral">{result.chatModel}</span>
-                <span className="status-chip is-neutral">{result.embeddingModel}</span>
+                <span className="status-chip is-neutral">
+                  {result.chatModel}
+                </span>
+                <span className="status-chip is-neutral">
+                  {result.embeddingModel}
+                </span>
               </div>
             ) : null}
           </article>

@@ -10,8 +10,8 @@
   "dependencies": {
     "@elysiajs/cors": "^1.1.1",
     "@pinecone-database/pinecone": "^5.1.2",
-    "elysia": "^1.1.26"
-    ,"openai": "^4.104.0"
+    "elysia": "^1.1.26",
+    "openai": "^4.104.0"
   },
   "devDependencies": {
     "bun-types": "latest",

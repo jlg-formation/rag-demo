@@ -250,7 +250,10 @@ const app = new Elysia()
       origin: true
     })
   )
-  .get("/api/health", () => ({ status: "ok", configuredSessions: sessionConfigs.size }))
+  .get("/api/health", () => ({
+    status: "ok",
+    configuredSessions: sessionConfigs.size
+  }))
   .post(
     "/api/configure",
     ({ body, set }) => {
@@ -352,7 +355,9 @@ const app = new Elysia()
       }
 
       try {
-        const [questionEmbedding] = await embedTexts(sessionConfig, [body.question]);
+        const [questionEmbedding] = await embedTexts(sessionConfig, [
+          body.question
+        ]);
         const queryResponse = await createPineconeIndex(sessionConfig)
           .namespace(sessionConfig.activeNamespace)
           .query({
