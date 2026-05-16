@@ -139,7 +139,9 @@ const formatPercent = (value) => `${value.toFixed(1).replace(/\.0$/, "")}%`;
 const logProgress = ({ completedFiles, totalFiles, group, fileName }) => {
   const percent = totalFiles ? (completedFiles / totalFiles) * 100 : 100;
   const suffix = group && fileName ? ` ${group}/${fileName}` : "";
-  console.log(`[import] ${formatPercent(percent)} (${completedFiles}/${totalFiles})${suffix}`);
+  console.log(
+    `[import] ${formatPercent(percent)} (${completedFiles}/${totalFiles})${suffix}`
+  );
 };
 
 const uploadFile = async ({ apiBaseUrl, cookie, group, file }) => {

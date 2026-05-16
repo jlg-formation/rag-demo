@@ -584,6 +584,45 @@ select {
   align-items: flex-start;
 }
 
+.document-card__body {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.document-card__text {
+  margin: 0;
+  color: #264864;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+}
+
+.document-card__text.is-expanded {
+  overflow: visible;
+  display: block;
+  white-space: pre-wrap;
+}
+
+.document-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(20, 48, 74, 0.08);
+}
+
+.document-card__hint {
+  font-size: 0.9rem;
+}
+
+.document-card__toggle {
+  width: auto;
+  flex: 0 0 auto;
+}
+
 .retrieval-meta {
   font-size: 0.9rem;
   color: #5c7183;
@@ -731,6 +770,15 @@ select {
   .document-card__header,
   .retrieval-meta {
     flex-direction: column;
+  }
+
+  .document-card__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .document-card__toggle {
+    width: 100%;
   }
 }
 

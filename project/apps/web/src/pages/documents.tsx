@@ -401,6 +401,7 @@ export function DocumentIndexPage() {
 export function DocumentsListPage() {
   const { resetAuth } = useDashboardContext();
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const [expandedDocumentIds, setExpandedDocumentIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -447,6 +448,9 @@ export function DocumentsListPage() {
       setDocuments((current) =>
         current.filter((document) => document.id !== documentId)
       );
+      setExpandedDocumentIds((current) =>
+        current.filter((id) => id !== documentId)
+      );
       setMessage("Document supprimé du JSON applicatif et de Pinecone.");
     } catch (error) {
       handleUnauthorized(error);
@@ -456,6 +460,14 @@ export function DocumentsListPage() {
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const toggleExpandedDocument = (documentId: string) => {
+    setExpandedDocumentIds((current) =>
+      current.includes(documentId)
+        ? current.filter((id) => id !== documentId)
+        : [...current, documentId]
+    );
   };
 
   return (
@@ -486,41 +498,70 @@ export function DocumentsListPage() {
         ) : null}
 
         <div className="document-list">
-          {documents.map((document) => (
-            <Card className="document-card" key={document.id}>
-              <div className="document-card__header">
-                <div>
-                  <h3>{document.title}</h3>
-                  <p className="muted-text meta-line meta-line--wrap">
-                    <FaLayerGroup />
+          {documents.map((document) => {
+            const isExpanded = expandedDocumentIds.includes(document.id);
+            const canExpand = document.sourceText.length > 280;
+
+            return (
+              <Card className="document-card" key={document.id}>
+                <div className="document-card__header">
+                  <div>
+                    <h3>{document.title}</h3>
+                    <p className="muted-text meta-line meta-line--wrap">
+                      <FaLayerGroup />
+                      <span>
+                        Groupe {document.group} · {document.chunkCount} chunks ·{" "}
+                        {formatDateTime(document.createdAt)}
+                      </span>
+                    </p>
+                  </div>
+
+                  <Button
+                    disabled={deletingId === document.id}
+                    onClick={() => void handleDelete(document.id)}
+                    type="button"
+                    variant="danger"
+                  >
+                    <FaTrashCan />
                     <span>
-                      Groupe {document.group} · {document.chunkCount} chunks ·{" "}
-                      {formatDateTime(document.createdAt)}
+                      {deletingId === document.id
+                        ? "Suppression…"
+                        : "Supprimer"}
                     </span>
-                  </p>
+                  </Button>
                 </div>
 
-                <Button
-                  disabled={deletingId === document.id}
-                  onClick={() => void handleDelete(document.id)}
-                  type="button"
-                  variant="danger"
-                >
-                  <FaTrashCan />
-                  <span>
-                    {deletingId === document.id ? "Suppression…" : "Supprimer"}
-                  </span>
-                </Button>
-              </div>
+                <div className="document-card__body">
+                  <p
+                    className={`document-card__text ${isExpanded ? "is-expanded" : ""}`}
+                  >
+                    {document.sourceText}
+                  </p>
 
-              <p>{document.sourceText}</p>
-            </Card>
-          ))}
+                  {canExpand ? (
+                    <div className="document-card__footer">
+                      <span className="muted-text document-card__hint">
+                        Aperçu réduit pour faciliter le balayage de la liste.
+                      </span>
+                      <Button
+                        className="document-card__toggle"
+                        onClick={() => toggleExpandedDocument(document.id)}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <span>{isExpanded ? "Voir moins" : "Voir plus"}</span>
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              </Card>
+            );
+          })}
 
           {!isLoading && !documents.length ? (
-            <EmptyState icon={<FaFileLines />}>
-              Aucun document accessible pour les groupes de l’utilisateur
-              connecté.
+            <EmptyState icon={<FaDatabase />}>
+              Aucun document indexé pour vos groupes.
             </EmptyState>
           ) : null}
         </div>
