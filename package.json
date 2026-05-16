@@ -16,6 +16,9 @@
     "typecheck:web": "bun run --cwd project typecheck:web",
     "content:generate": "node ./tools/generate-demo-content.mjs --outDir ./content --targetBytes 1048576",
     "content:import:dry-run": "node ./tools/bulk-import-content.mjs --api http://localhost:3000 --content ./content --dry-run",
-    "content:import": "node ./tools/bulk-import-content.mjs --api http://localhost:3000 --content ./content"
+    "content:import": "node ./tools/bulk-import-content.mjs --api http://localhost:3000 --content ./content",
+    "content:clear-rag:dry-run": "node ./tools/clear-rag-documents.mjs --dry-run",
+    "content:clear-rag": "node ./tools/clear-rag-documents.mjs",
+    "content:clear-rag:local-only": "node ./tools/clear-rag-documents.mjs --local-only"
   }
 }
