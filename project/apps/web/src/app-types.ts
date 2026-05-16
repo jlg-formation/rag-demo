@@ -31,6 +31,9 @@ export type RagConfigSummary = {
   pineconeHost: string | null;
   embeddingModel: string | null;
   chatModel: string | null;
+  chunkSize: number;
+  chunkOverlap: number;
+  chunkStride: number;
   updatedAt: string | null;
   updatedBy: string | null;
   namespace: string | null;

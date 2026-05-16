@@ -48,6 +48,7 @@ import {
   TextArea,
   TextInput
 } from "../components/ui";
+import { ChunkingSchema } from "../components/chunk-schema";
 
 export function DocumentIndexPage() {
   const { user, ragConfig, resetAuth } = useDashboardContext();
@@ -55,6 +56,10 @@ export function DocumentIndexPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [title, setTitle] = useState("Politique RAG d’équipe");
   const [group, setGroup] = useState("");
+  const [chunkSize, setChunkSize] = useState(String(ragConfig.chunkSize));
+  const [chunkOverlap, setChunkOverlap] = useState(
+    String(ragConfig.chunkOverlap)
+  );
   const [sourceText, setSourceText] = useState(sampleDocument);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
@@ -65,6 +70,12 @@ export function DocumentIndexPage() {
   const [isSubmittingText, setIsSubmittingText] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const chunkSizeValue = Math.max(1, Number(chunkSize) || ragConfig.chunkSize);
+  const chunkOverlapValue = Math.max(
+    0,
+    Number(chunkOverlap) || ragConfig.chunkOverlap
+  );
+  const chunkStrideValue = chunkSizeValue - chunkOverlapValue;
 
   const handleUnauthorized = (error: unknown) => {
     if (error instanceof ApiError && error.status === 401) {
@@ -97,6 +108,11 @@ export function DocumentIndexPage() {
 
     void loadGroups();
   }, []);
+
+  useEffect(() => {
+    setChunkSize(String(ragConfig.chunkSize));
+    setChunkOverlap(String(ragConfig.chunkOverlap));
+  }, [ragConfig.chunkOverlap, ragConfig.chunkSize]);
 
   const appendFiles = (incomingFiles: File[]) => {
     const acceptedFiles = incomingFiles.filter(isAcceptedDocumentFile);
@@ -161,6 +177,8 @@ export function DocumentIndexPage() {
     try {
       const formData = new FormData();
       formData.append("group", group);
+      formData.append("chunkSize", String(chunkSizeValue));
+      formData.append("chunkOverlap", String(chunkOverlapValue));
       for (const file of files) {
         formData.append("files", file);
       }
@@ -195,7 +213,13 @@ export function DocumentIndexPage() {
     try {
       await apiRequest<{ document: DocumentSummary }>("/api/documents", {
         method: "POST",
-        body: JSON.stringify({ title, group, sourceText })
+        body: JSON.stringify({
+          title,
+          group,
+          sourceText,
+          chunkSize: chunkSizeValue,
+          chunkOverlap: chunkOverlapValue
+        })
       });
       setPasteMessage("Document texte indexé et persisté avec succès.");
       setTitle("");
@@ -224,6 +248,16 @@ export function DocumentIndexPage() {
           title="Indexer un document"
         />
 
+        <Card className="compact-card">
+          <p className="m-0 text-sm font-semibold text-ink-900">
+            Paramètres de chunking actifs
+          </p>
+          <p className="m-0 text-sm text-ink-700">
+            Valeurs par défaut du backend : taille {ragConfig.chunkSize},
+            overlap {ragConfig.chunkOverlap}, stride {ragConfig.chunkStride}.
+          </p>
+        </Card>
+
         {isLoading ? (
           <EmptyState icon={<FaClock />}>Chargement des groupes…</EmptyState>
         ) : null}
@@ -241,6 +275,43 @@ export function DocumentIndexPage() {
               ))}
             </SelectInput>
           </Field>
+
+          <div className="config-grid">
+            <Field label="Taille de chunk (caractères)">
+              <TextInput
+                min={1}
+                step={1}
+                type="number"
+                value={chunkSize}
+                onChange={(event) => setChunkSize(event.target.value)}
+              />
+            </Field>
+
+            <Field label="Overlap (caractères)">
+              <TextInput
+                min={0}
+                step={1}
+                type="number"
+                value={chunkOverlap}
+                onChange={(event) => setChunkOverlap(event.target.value)}
+              />
+            </Field>
+          </div>
+
+          <Card className="compact-card">
+            <p className="m-0 text-sm font-semibold text-ink-900">
+              Stride calculé pour cette indexation
+            </p>
+            <p className="m-0 text-sm text-ink-700">
+              {chunkStrideValue > 0
+                ? `${chunkStrideValue} caractères (${chunkSizeValue} - ${chunkOverlapValue})`
+                : "Le stride doit rester strictement positif."}
+            </p>
+            <ChunkingSchema
+              chunkOverlap={chunkOverlapValue}
+              chunkSize={chunkSizeValue}
+            />
+          </Card>
 
           <div className="mt-2 flex flex-col gap-2">
             <span>Fichiers source</span>
@@ -318,7 +389,8 @@ export function DocumentIndexPage() {
               isUploadingFiles ||
               !ragConfig.configured ||
               !groups.length ||
-              !files.length
+              !files.length ||
+              chunkOverlapValue >= chunkSizeValue
             }
             fullWidth
             type="submit"
@@ -364,7 +436,10 @@ export function DocumentIndexPage() {
 
           <Button
             disabled={
-              isSubmittingText || !ragConfig.configured || !groups.length
+              isSubmittingText ||
+              !ragConfig.configured ||
+              !groups.length ||
+              chunkOverlapValue >= chunkSizeValue
             }
             fullWidth
             type="submit"
@@ -384,6 +459,11 @@ export function DocumentIndexPage() {
         {pasteError ? (
           <Banner icon={<FaTriangleExclamation />} tone="error">
             {pasteError}
+          </Banner>
+        ) : null}
+        {chunkOverlapValue >= chunkSizeValue ? (
+          <Banner icon={<FaTriangleExclamation />} tone="error">
+            L’overlap doit rester strictement inférieur à la taille de chunk.
           </Banner>
         ) : null}
 

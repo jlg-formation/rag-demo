@@ -2,10 +2,13 @@ import { cors } from "@elysiajs/cors";
 import { Elysia, t } from "elysia";
 import {
   DEFAULT_CHAT_MODEL,
+  DEFAULT_CHUNK_OVERLAP,
+  DEFAULT_CHUNK_SIZE,
   DEFAULT_EMBEDDING_MODEL,
   PINECONE_NAMESPACE,
   deleteDocumentVectors,
   generateAnswer,
+  getChunkingConfig,
   indexDocumentInPinecone,
   queryAccessibleChunks,
   resolvePineconeHost
@@ -76,20 +79,28 @@ const getSecretLastCharacters = (value: string | null | undefined) => {
 
 const toRagSettingsSummary = (settings: RagSettingsRecord | null) =>
   settings
-    ? {
-        configured: true,
-        openAiApiKeyConfigured: Boolean(settings.openAiApiKey),
-        openAiApiKeyLast4: getSecretLastCharacters(settings.openAiApiKey),
-        pineconeApiKeyConfigured: Boolean(settings.pineconeApiKey),
-        pineconeApiKeyLast4: getSecretLastCharacters(settings.pineconeApiKey),
-        pineconeIndex: settings.pineconeIndex,
-        pineconeHost: settings.pineconeHost || null,
-        embeddingModel: settings.embeddingModel,
-        chatModel: settings.chatModel,
-        updatedAt: settings.updatedAt,
-        updatedBy: settings.updatedBy,
-        namespace: settings.namespace
-      }
+    ? (() => {
+        const { chunkSize, chunkOverlap, chunkStride } =
+          getChunkingConfig(settings);
+
+        return {
+          configured: true,
+          openAiApiKeyConfigured: Boolean(settings.openAiApiKey),
+          openAiApiKeyLast4: getSecretLastCharacters(settings.openAiApiKey),
+          pineconeApiKeyConfigured: Boolean(settings.pineconeApiKey),
+          pineconeApiKeyLast4: getSecretLastCharacters(settings.pineconeApiKey),
+          pineconeIndex: settings.pineconeIndex,
+          pineconeHost: settings.pineconeHost || null,
+          embeddingModel: settings.embeddingModel,
+          chatModel: settings.chatModel,
+          chunkSize,
+          chunkOverlap,
+          chunkStride,
+          updatedAt: settings.updatedAt,
+          updatedBy: settings.updatedBy,
+          namespace: settings.namespace
+        };
+      })()
     : {
         configured: false,
         openAiApiKeyConfigured: false,
@@ -100,6 +111,9 @@ const toRagSettingsSummary = (settings: RagSettingsRecord | null) =>
         pineconeHost: null,
         embeddingModel: null,
         chatModel: null,
+        chunkSize: DEFAULT_CHUNK_SIZE,
+        chunkOverlap: DEFAULT_CHUNK_OVERLAP,
+        chunkStride: DEFAULT_CHUNK_SIZE - DEFAULT_CHUNK_OVERLAP,
         updatedAt: null,
         updatedBy: null,
         namespace: null
@@ -189,6 +203,8 @@ const indexDocumentForUser = async (input: {
   title: string;
   group: string;
   sourceText: string;
+  chunkSize?: number;
+  chunkOverlap?: number;
   user: UserRecord;
   set: ResponseSet;
 }) => {
@@ -219,15 +235,40 @@ const indexDocumentForUser = async (input: {
     return ragSettings;
   }
 
+  const chunkSize = Math.max(
+    1,
+    Math.floor(input.chunkSize ?? ragSettings.chunkSize ?? DEFAULT_CHUNK_SIZE)
+  );
+  const chunkOverlap = Math.max(
+    0,
+    Math.floor(
+      input.chunkOverlap ?? ragSettings.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP
+    )
+  );
+
+  if (chunkOverlap >= chunkSize) {
+    return badRequest(
+      input.set,
+      "L'overlap doit rester strictement inferieur a la taille de chunk."
+    );
+  }
+
   try {
     const documentId = crypto.randomUUID();
-    const indexed = await indexDocumentInPinecone(ragSettings, {
-      id: documentId,
-      title,
-      group,
-      sourceText,
-      createdBy: input.user.email
-    });
+    const indexed = await indexDocumentInPinecone(
+      {
+        ...ragSettings,
+        chunkSize,
+        chunkOverlap
+      },
+      {
+        id: documentId,
+        title,
+        group,
+        sourceText,
+        createdBy: input.user.email
+      }
+    );
 
     const document = await store.createDocument({
       id: documentId,
@@ -474,6 +515,8 @@ const app = new Elysia()
         title: body.title,
         group: body.group,
         sourceText: body.sourceText,
+        chunkSize: body.chunkSize,
+        chunkOverlap: body.chunkOverlap,
         user: auth.user,
         set
       });
@@ -488,7 +531,9 @@ const app = new Elysia()
       body: t.Object({
         title: t.String(),
         group: t.String(),
-        sourceText: t.String()
+        sourceText: t.String(),
+        chunkSize: t.Optional(t.Number()),
+        chunkOverlap: t.Optional(t.Number())
       })
     }
   )
@@ -500,6 +545,9 @@ const app = new Elysia()
 
     const formData = await request.formData();
     const group = String(formData.get("group") || "").trim();
+    const chunkSize = Number(formData.get("chunkSize") || "") || undefined;
+    const chunkOverlap =
+      Number(formData.get("chunkOverlap") || "") || undefined;
     const files = formData
       .getAll("files")
       .filter((value): value is File => value instanceof File);
@@ -531,6 +579,8 @@ const app = new Elysia()
         title: normalizeDocumentTitle(file.name),
         group,
         sourceText,
+        chunkSize,
+        chunkOverlap,
         user: auth.user,
         set
       });
@@ -624,11 +674,32 @@ const app = new Elysia()
       const nextPineconeHost = body.pineconeHost?.trim()
         ? body.pineconeHost.trim()
         : undefined;
+      const nextChunkSize = Math.max(
+        1,
+        Math.floor(
+          body.chunkSize ?? existingSettings?.chunkSize ?? DEFAULT_CHUNK_SIZE
+        )
+      );
+      const nextChunkOverlap = Math.max(
+        0,
+        Math.floor(
+          body.chunkOverlap ??
+            existingSettings?.chunkOverlap ??
+            DEFAULT_CHUNK_OVERLAP
+        )
+      );
 
       if (!nextOpenAiApiKey || !nextPineconeApiKey || !nextPineconeIndex) {
         return badRequest(
           set,
           "La configuration OpenAI et Pinecone est incomplete."
+        );
+      }
+
+      if (nextChunkOverlap >= nextChunkSize) {
+        return badRequest(
+          set,
+          "L'overlap doit rester strictement inferieur a la taille de chunk."
         );
       }
 
@@ -646,6 +717,8 @@ const app = new Elysia()
           pineconeHost,
           embeddingModel: body.embeddingModel || DEFAULT_EMBEDDING_MODEL,
           chatModel: body.chatModel || DEFAULT_CHAT_MODEL,
+          chunkSize: nextChunkSize,
+          chunkOverlap: nextChunkOverlap,
           namespace: PINECONE_NAMESPACE,
           updatedAt: new Date().toISOString(),
           updatedBy: auth.user.email
@@ -670,7 +743,9 @@ const app = new Elysia()
         pineconeIndex: t.String(),
         pineconeHost: t.Optional(t.String()),
         embeddingModel: t.Optional(t.String()),
-        chatModel: t.Optional(t.String())
+        chatModel: t.Optional(t.String()),
+        chunkSize: t.Optional(t.Number()),
+        chunkOverlap: t.Optional(t.Number())
       })
     }
   )

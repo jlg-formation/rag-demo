@@ -146,6 +146,8 @@ function SecretField({
 
 export function RagConfigurationPage() {
   const { user, ragConfig, setRagConfig, resetAuth } = useDashboardContext();
+  const defaultChunkSize = 320;
+  const defaultChunkOverlap = 40;
   const [showOpenAiApiKey, setShowOpenAiApiKey] = useState(false);
   const [showPineconeApiKey, setShowPineconeApiKey] = useState(false);
   const [replaceOpenAiApiKey, setReplaceOpenAiApiKey] = useState(false);
@@ -164,9 +166,21 @@ export function RagConfigurationPage() {
   const [chatModel, setChatModel] = useState(
     ragConfig.chatModel || "gpt-4.1-mini"
   );
+  const [chunkSize, setChunkSize] = useState(
+    String(ragConfig.chunkSize || 320)
+  );
+  const [chunkOverlap, setChunkOverlap] = useState(
+    String(ragConfig.chunkOverlap || 40)
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isConfiguring, setIsConfiguring] = useState(false);
+  const chunkSizeValue = Math.max(1, Number(chunkSize) || defaultChunkSize);
+  const chunkOverlapValue = Math.max(
+    0,
+    Number(chunkOverlap) || defaultChunkOverlap
+  );
+  const chunkStrideValue = chunkSizeValue - chunkOverlapValue;
 
   useEffect(() => {
     setOpenAiApiKey("");
@@ -179,6 +193,8 @@ export function RagConfigurationPage() {
     setPineconeHost(ragConfig.pineconeHost || "");
     setEmbeddingModel(ragConfig.embeddingModel || "text-embedding-3-small");
     setChatModel(ragConfig.chatModel || "gpt-4.1-mini");
+    setChunkSize(String(ragConfig.chunkSize || 320));
+    setChunkOverlap(String(ragConfig.chunkOverlap || 40));
   }, [ragConfig]);
 
   const handleUnauthorized = (error: unknown) => {
@@ -201,12 +217,22 @@ export function RagConfigurationPage() {
         pineconeHost?: string;
         embeddingModel: string;
         chatModel: string;
+        chunkSize: number;
+        chunkOverlap: number;
       } = {
         pineconeIndex,
         pineconeHost: pineconeHost || undefined,
         embeddingModel,
-        chatModel
+        chatModel,
+        chunkSize: chunkSizeValue,
+        chunkOverlap: chunkOverlapValue
       };
+
+      if (chunkOverlapValue >= chunkSizeValue) {
+        throw new Error(
+          "L'overlap doit rester strictement inférieur à la taille de chunk."
+        );
+      }
 
       if (replaceOpenAiApiKey) {
         requestBody.openAiApiKey = openAiApiKey;
@@ -274,6 +300,19 @@ export function RagConfigurationPage() {
               <span>Mis à jour : {formatDateTime(ragConfig.updatedAt)}</span>
             </p>
           </Card>
+          <Card className="info-card">
+            <p className="answer-label info-line">
+              <FaDatabase />
+              <span>Chunking</span>
+            </p>
+            <p>
+              {ragConfig.chunkSize} caractères, overlap {ragConfig.chunkOverlap}
+            </p>
+            <p className="muted-text meta-line">
+              <FaClock />
+              <span>Stride : {ragConfig.chunkStride}</span>
+            </p>
+          </Card>
         </div>
 
         <Divider className="my-5" />
@@ -334,8 +373,8 @@ export function RagConfigurationPage() {
               Paramètres techniques
             </p>
             <p className="m-0 text-sm text-ink-700">
-              Modifiez ici uniquement l’index, le host et les modèles utilisés
-              par le backend.
+              Modifiez ici l’index, le host, les modèles et les paramètres de
+              chunking utilisés par le backend.
             </p>
           </div>
 
@@ -375,11 +414,50 @@ export function RagConfigurationPage() {
                 onChange={(event) => setChatModel(event.target.value)}
               />
             </Field>
+
+            <Field label="Taille de chunk (caractères)">
+              <TextInput
+                min={1}
+                step={1}
+                type="number"
+                value={chunkSize}
+                onChange={(event) => setChunkSize(event.target.value)}
+              />
+            </Field>
+
+            <Field label="Overlap (caractères)">
+              <TextInput
+                min={0}
+                step={1}
+                type="number"
+                value={chunkOverlap}
+                onChange={(event) => setChunkOverlap(event.target.value)}
+              />
+            </Field>
           </div>
+
+          <Card className="compact-card">
+            <p className="m-0 text-sm font-semibold text-ink-900">
+              Stride calculé
+            </p>
+            <p className="m-0 text-sm text-ink-700">
+              {chunkStrideValue > 0
+                ? `${chunkStrideValue} caractères (${chunkSizeValue} - ${chunkOverlapValue})`
+                : "Le stride doit rester strictement positif."}
+            </p>
+          </Card>
 
           <Divider className="my-5" />
 
-          <Button disabled={isConfiguring} fullWidth type="submit">
+          <Button
+            disabled={
+              isConfiguring ||
+              !pineconeIndex.trim() ||
+              chunkOverlapValue >= chunkSizeValue
+            }
+            fullWidth
+            type="submit"
+          >
             <FaGear />
             <span>
               {isConfiguring
@@ -397,6 +475,11 @@ export function RagConfigurationPage() {
         {error ? (
           <Banner icon={<FaTriangleExclamation />} tone="error">
             {error}
+          </Banner>
+        ) : null}
+        {chunkOverlapValue >= chunkSizeValue ? (
+          <Banner icon={<FaTriangleExclamation />} tone="error">
+            L’overlap doit rester strictement inférieur à la taille de chunk.
           </Banner>
         ) : null}
       </Panel>

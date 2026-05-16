@@ -5,6 +5,8 @@ export type ProviderConfig = {
   pineconeHost?: string;
   embeddingModel: string;
   chatModel: string;
+  chunkSize?: number;
+  chunkOverlap?: number;
 };
 
 export type GroupRecord = {

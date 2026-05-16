@@ -62,8 +62,29 @@ export type ChunkMatch = {
 export const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
 export const DEFAULT_CHAT_MODEL = "gpt-4.1-mini";
 export const PINECONE_NAMESPACE = "rag-demo";
+export const DEFAULT_CHUNK_SIZE = 320;
+export const DEFAULT_CHUNK_OVERLAP = 40;
 
 const createOpenAIClient = (apiKey: string) => new OpenAI({ apiKey });
+
+export const getChunkingConfig = (
+  config?: Pick<ProviderConfig, "chunkSize" | "chunkOverlap">
+) => {
+  const chunkSize = Math.max(
+    1,
+    Math.floor(config?.chunkSize ?? DEFAULT_CHUNK_SIZE)
+  );
+  const chunkOverlap = Math.min(
+    Math.max(0, Math.floor(config?.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP)),
+    Math.max(chunkSize - 1, 0)
+  );
+
+  return {
+    chunkSize,
+    chunkOverlap,
+    chunkStride: Math.max(1, chunkSize - chunkOverlap)
+  };
+};
 
 export const resolvePineconeHost = async (
   config: Pick<
@@ -103,69 +124,38 @@ const createPineconeNamespace = async (config: ProviderConfig) => {
   return index.namespace(PINECONE_NAMESPACE);
 };
 
-const chunkDocument = (document: string, maxChunkLength = 320) => {
-  const paragraphs = document
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
+const chunkDocument = (
+  document: string,
+  config?: Pick<ProviderConfig, "chunkSize" | "chunkOverlap">
+) => {
+  const normalizedDocument = document.replace(/\s+/g, " ").trim();
 
+  if (!normalizedDocument) {
+    return [];
+  }
+
+  const { chunkSize, chunkStride } = getChunkingConfig(config);
   const chunks: string[] = [];
-  let buffer = "";
 
-  for (const paragraph of paragraphs) {
-    if (!buffer) {
-      buffer = paragraph;
-      continue;
+  for (
+    let startIndex = 0;
+    startIndex < normalizedDocument.length;
+    startIndex += chunkStride
+  ) {
+    const chunk = normalizedDocument
+      .slice(startIndex, startIndex + chunkSize)
+      .trim();
+
+    if (chunk) {
+      chunks.push(chunk);
     }
 
-    if ((buffer + "\n\n" + paragraph).length <= maxChunkLength) {
-      buffer += `\n\n${paragraph}`;
-      continue;
+    if (startIndex + chunkSize >= normalizedDocument.length) {
+      break;
     }
-
-    chunks.push(buffer);
-    buffer = paragraph;
   }
 
-  if (buffer) {
-    chunks.push(buffer);
-  }
-
-  return chunks.flatMap((chunk) => {
-    if (chunk.length <= maxChunkLength) {
-      return [chunk];
-    }
-
-    const sentences = chunk
-      .split(/(?<=[.!?])\s+/)
-      .map((sentence) => sentence.trim())
-      .filter(Boolean);
-
-    const smallerChunks: string[] = [];
-    let sentenceBuffer = "";
-
-    for (const sentence of sentences) {
-      const candidate = sentenceBuffer
-        ? `${sentenceBuffer} ${sentence}`
-        : sentence;
-      if (candidate.length <= maxChunkLength) {
-        sentenceBuffer = candidate;
-        continue;
-      }
-
-      if (sentenceBuffer) {
-        smallerChunks.push(sentenceBuffer);
-      }
-
-      sentenceBuffer = sentence;
-    }
-
-    if (sentenceBuffer) {
-      smallerChunks.push(sentenceBuffer);
-    }
-
-    return smallerChunks;
-  });
+  return chunks;
 };
 
 const embedTexts = async (config: ProviderConfig, inputs: string[]) => {
@@ -185,7 +175,7 @@ export const indexDocumentInPinecone = async (
     "id" | "title" | "group" | "sourceText" | "createdBy"
   >
 ) => {
-  const chunks = chunkDocument(document.sourceText);
+  const chunks = chunkDocument(document.sourceText, config);
   const embeddings = await embedTexts(config, chunks);
   const namespace = await createPineconeNamespace(config);
   const vectorIds = chunks.map(

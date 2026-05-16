@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FaArrowsLeftRight,
   FaChartColumn,
@@ -9,8 +9,8 @@ import {
   FaScissors,
   FaWandSparkles
 } from "react-icons/fa6";
-import { encodingForModel, getEncoding } from "js-tiktoken";
 import {
+  Banner,
   Button,
   Card,
   EmptyState,
@@ -21,6 +21,7 @@ import {
   TextArea,
   TextInput
 } from "../components/ui";
+import type { Tiktoken } from "js-tiktoken/lite";
 
 const tokenizerOptions = [
   {
@@ -67,6 +68,9 @@ const tokenizerOptions = [
   }
 ] as const;
 
+type TokenizerEncodingName = (typeof tokenizerOptions)[number]["encoding"];
+type TokenizerInstance = Pick<Tiktoken, "encode" | "decode">;
+
 const tokenizerReference = [
   { model: "text-embedding-3-small", encoding: "cl100k_base" },
   { model: "text-embedding-3-large", encoding: "cl100k_base" },
@@ -90,28 +94,39 @@ const sampleTexts = [
   }
 ] as const;
 
-const tokenizerCache = new Map<string, ReturnType<typeof getEncoding>>();
+const TIKTOKEN_RANKS_BASE_URL = "https://tiktoken.pages.dev/js";
 
-const getTokenizer = (tokenizerName: string) => {
-  const cached = tokenizerCache.get(tokenizerName);
+const tokenizerCache = new Map<
+  TokenizerEncodingName,
+  Promise<TokenizerInstance>
+>();
+
+const loadTokenizer = async (
+  encodingName: TokenizerEncodingName
+): Promise<TokenizerInstance> => {
+  const cached = tokenizerCache.get(encodingName);
   if (cached) {
     return cached;
   }
 
-  const tokenizer =
-    tokenizerName === "cl100k_base" || tokenizerName === "o200k_base"
-      ? getEncoding(tokenizerName)
-      : encodingForModel(
-          tokenizerName as Parameters<typeof encodingForModel>[0]
-        );
+  const tokenizerPromise = (async () => {
+    const [{ Tiktoken }, response] = await Promise.all([
+      import("js-tiktoken/lite"),
+      fetch(`${TIKTOKEN_RANKS_BASE_URL}/${encodingName}.json`)
+    ]);
 
-  tokenizerCache.set(tokenizerName, tokenizer);
-  return tokenizer;
-};
+    if (!response.ok) {
+      throw new Error(
+        `Téléchargement du tokenizer ${encodingName} impossible (HTTP ${response.status}).`
+      );
+    }
 
-const decodeToken = (tokenizerName: string, token: number) => {
-  const tokenizer = getTokenizer(tokenizerName);
-  return tokenizer.decode([token]);
+    const ranks = await response.json();
+    return new Tiktoken(ranks);
+  })();
+
+  tokenizerCache.set(encodingName, tokenizerPromise);
+  return tokenizerPromise;
 };
 
 const formatDecodedToken = (value: string) =>
@@ -158,13 +173,54 @@ export function TiktokenDemoPage() {
   const [sourceText, setSourceText] = useState<string>(sampleTexts[1].text);
   const [chunkBudget, setChunkBudget] = useState("60");
   const [overlap, setOverlap] = useState("10");
+  const [tokenizer, setTokenizer] = useState<TokenizerInstance | null>(null);
+  const [tokenizerError, setTokenizerError] = useState<string | null>(null);
+  const [isTokenizerLoading, setIsTokenizerLoading] = useState(true);
 
   const selectedTokenizerOption =
     tokenizerOptions.find((option) => option.value === tokenizerName) ||
     tokenizerOptions[0];
 
-  const tokenizer = getTokenizer(tokenizerName);
-  const tokens = sourceText ? tokenizer.encode(sourceText) : [];
+  useEffect(() => {
+    let isCancelled = false;
+
+    setIsTokenizerLoading(true);
+    setTokenizerError(null);
+
+    void loadTokenizer(selectedTokenizerOption.encoding)
+      .then((instance) => {
+        if (isCancelled) {
+          return;
+        }
+
+        setTokenizer(instance);
+      })
+      .catch((error) => {
+        if (isCancelled) {
+          return;
+        }
+
+        setTokenizer(null);
+        setTokenizerError(
+          error instanceof Error
+            ? error.message
+            : "Chargement distant du tokenizer impossible."
+        );
+      })
+      .finally(() => {
+        if (isCancelled) {
+          return;
+        }
+
+        setIsTokenizerLoading(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedTokenizerOption.encoding]);
+
+  const tokens = sourceText && tokenizer ? tokenizer.encode(sourceText) : [];
   const budget = Math.max(1, Number(chunkBudget) || 1);
   const overlapValue = Math.max(0, Number(overlap) || 0);
   const simulatedChunks = chunkTokens(tokens, budget, overlapValue);
@@ -177,6 +233,8 @@ export function TiktokenDemoPage() {
     ? (words / tokens.length).toFixed(2)
     : "0.00";
 
+  const isTokenizerReady = Boolean(tokenizer) && !isTokenizerLoading;
+
   return (
     <div className="page-grid">
       <Panel className="page-panel">
@@ -185,6 +243,18 @@ export function TiktokenDemoPage() {
           icon={<FaCode />}
           title="Démo unitaire · Tiktoken"
         />
+
+        {tokenizerError ? (
+          <Banner className="mt-5" icon={<FaDatabase />} tone="error">
+            {tokenizerError}
+          </Banner>
+        ) : null}
+
+        {isTokenizerLoading ? (
+          <Banner className="mt-5" icon={<FaDatabase />} tone="info">
+            Chargement distant du tokenizer {selectedTokenizerOption.encoding}…
+          </Banner>
+        ) : null}
 
         <div className="mt-5 grid gap-4">
           <div className="grid gap-4">
@@ -345,7 +415,9 @@ export function TiktokenDemoPage() {
 
           {!displayedTokens.length ? (
             <EmptyState icon={<FaHashtag />}>
-              Saisissez un texte pour afficher les tokens.
+              {isTokenizerReady
+                ? "Saisissez un texte pour afficher les tokens."
+                : "Le tokenizer se charge avant l'affichage des tokens."}
             </EmptyState>
           ) : (
             <div className="mt-5 grid gap-3">
@@ -359,7 +431,7 @@ export function TiktokenDemoPage() {
                       {token}
                     </p>
                     <p className="m-0 overflow-x-auto rounded-control bg-ink-950/6 px-3 py-2 font-mono text-sm whitespace-nowrap text-ink-900">
-                      {formatDecodedToken(decodeToken(tokenizerName, token))}
+                      {formatDecodedToken(tokenizer?.decode([token]) || "")}
                     </p>
                   </Card>
                 ))}
@@ -434,19 +506,25 @@ export function TiktokenDemoPage() {
           </div>
 
           <div className="mt-5 grid gap-3">
-            {simulatedChunks.map((chunk, index) => (
-              <Card className="space-y-2" key={`${chunk.start}-${chunk.end}`}>
-                <p className="m-0 text-sm font-semibold text-ink-900">
-                  Chunk {index + 1} · tokens {chunk.start + 1} à {chunk.end}
-                </p>
-                <p className="m-0 text-sm text-ink-700">
-                  {chunk.tokens.length} tokens dans cette fenêtre.
-                </p>
-                <p className="m-0 rounded-card bg-surface-warm px-4 py-3 text-sm leading-6 text-ink-900">
-                  {tokenizer.decode(chunk.tokens)}
-                </p>
-              </Card>
-            ))}
+            {!isTokenizerReady ? (
+              <EmptyState icon={<FaScissors />}>
+                Le tokenizer se charge avant la simulation de chunking.
+              </EmptyState>
+            ) : (
+              simulatedChunks.map((chunk, index) => (
+                <Card className="space-y-2" key={`${chunk.start}-${chunk.end}`}>
+                  <p className="m-0 text-sm font-semibold text-ink-900">
+                    Chunk {index + 1} · tokens {chunk.start + 1} à {chunk.end}
+                  </p>
+                  <p className="m-0 text-sm text-ink-700">
+                    {chunk.tokens.length} tokens dans cette fenêtre.
+                  </p>
+                  <p className="m-0 rounded-card bg-surface-warm px-4 py-3 text-sm leading-6 text-ink-900">
+                    {tokenizer?.decode(chunk.tokens) || ""}
+                  </p>
+                </Card>
+              ))
+            )}
           </div>
         </Panel>
       </div>

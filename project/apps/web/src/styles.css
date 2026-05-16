@@ -595,6 +595,7 @@ select {
   color: #264864;
   overflow: hidden;
   display: -webkit-box;
+  line-clamp: 5;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 5;
 }
@@ -688,6 +689,198 @@ select {
   justify-self: start;
 }
 
+.chunk-schema {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1px solid rgba(20, 48, 74, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.chunk-schema__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.chunk-schema__title,
+.chunk-schema__summary {
+  margin: 0;
+}
+
+.chunk-schema__title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #14304a;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chunk-schema__summary {
+  font-size: 0.82rem;
+  color: #35556f;
+  font-variant-numeric: tabular-nums;
+}
+
+.chunk-schema__canvas {
+  display: grid;
+  gap: 14px;
+  padding: 0 8px 52px;
+}
+
+.chunk-schema__frame {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  padding: 44px 0 26px;
+}
+
+.chunk-schema__scale {
+  position: relative;
+  height: 34px;
+}
+
+.chunk-schema__tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.chunk-schema__tick::before {
+  content: "";
+  display: block;
+  width: 1px;
+  height: 18px;
+  margin: 0 auto 6px;
+  background: rgba(20, 48, 74, 0.55);
+}
+
+.chunk-schema__tick-label {
+  display: inline-block;
+  min-width: 28px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #35556f;
+  font-variant-numeric: tabular-nums;
+}
+
+.chunk-schema__rows {
+  display: grid;
+  gap: 16px;
+}
+
+.chunk-schema__row {
+  position: relative;
+  height: 48px;
+}
+
+.chunk-schema__row::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  border-top: 1px solid rgba(20, 48, 74, 0.12);
+  transform: translateY(-50%);
+}
+
+.chunk-schema__segment {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  border: 1px solid rgba(20, 48, 74, 0.82);
+  border-radius: 3px;
+  background: #ffffff;
+  color: #14304a;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.chunk-schema__guide {
+  position: absolute;
+  top: 54px;
+  bottom: 32px;
+  width: 0;
+  border-left: 1px solid rgba(20, 48, 74, 0.2);
+  transform: translateX(-50%);
+}
+
+.chunk-schema__arrow {
+  position: absolute;
+  display: block;
+  height: 0;
+  border-top: 1px solid rgba(20, 48, 74, 0.58);
+  bottom: 20px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #264864;
+  font-variant-numeric: tabular-nums;
+  overflow: visible;
+}
+
+.chunk-schema__arrow::before,
+.chunk-schema__arrow::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 0;
+  border-top: 1px solid rgba(20, 48, 74, 0.58);
+}
+
+.chunk-schema__arrow::after {
+  right: 0;
+  transform-origin: right center;
+  transform: translateY(-50%) rotate(-60deg);
+}
+
+.chunk-schema__arrow::before {
+  left: 0;
+  transform-origin: left center;
+  transform: translateY(-50%) rotate(60deg);
+}
+
+.chunk-schema__arrow span {
+  position: absolute;
+  top: -0.95rem;
+  left: 50%;
+  z-index: 1;
+  padding: 0 6px;
+  transform: translateX(-50%);
+  background: #ffffff;
+}
+
+.chunk-schema__arrow--stride {
+  color: #35556f;
+}
+
+.chunk-schema__arrow--overlap {
+  bottom: 56px;
+  color: #35556f;
+}
+
+.chunk-schema__legend {
+  position: absolute;
+  left: 8px;
+  bottom: 0;
+  display: flex;
+  gap: 18px;
+  font-size: 0.72rem;
+  color: #5c7183;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
 .section-divider {
   height: 1px;
   margin: 28px 0;
@@ -779,6 +972,30 @@ select {
 
   .document-card__toggle {
     width: 100%;
+  }
+
+  .chunk-schema__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chunk-schema__canvas {
+    padding-bottom: 84px;
+  }
+
+  .chunk-schema__frame {
+    padding-top: 44px;
+  }
+
+  .chunk-schema__segment {
+    min-width: 72px;
+    font-size: 0.76rem;
+  }
+
+  .chunk-schema__legend {
+    left: 0;
+    gap: 12px;
+    flex-wrap: wrap;
   }
 }
 
