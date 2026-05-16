@@ -277,17 +277,20 @@ export function UsersPage() {
 
           <Field label="Mot de passe initial">
             <div className="secret-field">
-              <TextInput
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                type={showPassword ? "text" : "password"}
-              />
-              <PasswordVisibilityButton
-                hideLabel="Masquer le mot de passe initial"
-                onToggle={() => setShowPassword((current) => !current)}
-                showLabel="Afficher le mot de passe initial"
-                shown={showPassword}
-              />
+              <div className="secret-input-wrap">
+                <TextInput
+                  className="secret-input"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  type={showPassword ? "text" : "password"}
+                />
+                <PasswordVisibilityButton
+                  hideLabel="Masquer le mot de passe initial"
+                  onToggle={() => setShowPassword((current) => !current)}
+                  showLabel="Afficher le mot de passe initial"
+                  shown={showPassword}
+                />
+              </div>
             </div>
           </Field>
 

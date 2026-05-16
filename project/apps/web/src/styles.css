@@ -376,26 +376,114 @@ select {
 }
 
 .secret-field {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
+  width: 100%;
 }
 
-.toggle-visibility-button {
+.secret-status-trigger {
+  display: inline-flex;
+  width: 100%;
+  border: 1px solid rgba(20, 48, 74, 0.12);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(255, 249, 239, 0.78);
+  color: #14304a;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.secret-status-trigger:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+
+.secret-status-trigger:hover {
+  border-color: rgba(20, 48, 74, 0.2);
+  background: rgba(255, 249, 239, 0.92);
+}
+
+.secret-status-content {
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(20, 48, 74, 0.12);
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #264864;
-  font-weight: 700;
-  white-space: nowrap;
+  gap: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2f7c68;
 }
 
-.toggle-visibility-button:hover {
+.secret-input-wrap {
+  position: relative;
+}
+
+.secret-input {
+  padding-right: 64px;
+}
+
+.secret-input--with-prefix {
+  padding-left: 84px;
+}
+
+.secret-prefix-button {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  border: none;
+  border-right: 1px solid rgba(20, 48, 74, 0.12);
+  border-radius: 17px 0 0 17px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.58);
+  color: #14304a;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.secret-prefix-button:hover {
   background: rgba(20, 48, 74, 0.08);
+}
+
+.secret-prefix-button:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+
+.secret-visibility-toggle {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  background: transparent;
+  color: #264864;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.secret-visibility-toggle:hover {
+  background: rgba(20, 48, 74, 0.08);
+}
+
+.secret-visibility-toggle:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
 }
 
 .config-grid,

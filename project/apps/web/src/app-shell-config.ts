@@ -11,8 +11,10 @@ import type { RagConfigSummary } from "./app-types";
 
 export const EMPTY_RAG_CONFIG: RagConfigSummary = {
   configured: false,
-  openAiApiKey: null,
-  pineconeApiKey: null,
+  openAiApiKeyConfigured: false,
+  openAiApiKeyLast4: null,
+  pineconeApiKeyConfigured: false,
+  pineconeApiKeyLast4: null,
   pineconeIndex: null,
   pineconeHost: null,
   embeddingModel: null,

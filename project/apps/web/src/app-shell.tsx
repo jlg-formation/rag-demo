@@ -134,26 +134,26 @@ function LoginPage({
 
         <Field label="Mot de passe">
           <div className="secret-field">
-            <TextInput
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              type={showPassword ? "text" : "password"}
-            />
-            <Button
-              aria-label={
-                showPassword
-                  ? "Masquer le mot de passe"
-                  : "Afficher le mot de passe"
-              }
-              className="whitespace-nowrap"
-              onClick={() => setShowPassword((current) => !current)}
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              {showPassword ? <FaEyeSlash /> : <FaEye />}
-              <span>{showPassword ? "Masquer" : "Afficher"}</span>
-            </Button>
+            <div className="secret-input-wrap">
+              <TextInput
+                className="secret-input"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                type={showPassword ? "text" : "password"}
+              />
+              <button
+                aria-label={
+                  showPassword
+                    ? "Masquer le mot de passe"
+                    : "Afficher le mot de passe"
+                }
+                className="secret-visibility-toggle"
+                onClick={() => setShowPassword((current) => !current)}
+                type="button"
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
           </div>
         </Field>
 

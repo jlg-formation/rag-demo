@@ -7,11 +7,13 @@ import {
   FaEyeSlash,
   FaFileLines,
   FaGear,
+  FaKey,
   FaLayerGroup,
   FaMagnifyingGlass,
   FaShieldHalved,
   FaTriangleExclamation,
-  FaWandSparkles
+  FaWandSparkles,
+  FaXmark
 } from "react-icons/fa6";
 import { Navigate } from "react-router-dom";
 import {
@@ -25,6 +27,7 @@ import {
   Banner,
   Button,
   Card,
+  Divider,
   EmptyState,
   Field,
   Panel,
@@ -32,16 +35,123 @@ import {
   TextInput
 } from "../components/ui";
 
+const getSecretStatusLabel = (
+  configured: boolean,
+  lastCharacters: string | null
+) => {
+  if (!configured) {
+    return "Aucune clé enregistrée";
+  }
+
+  if (!lastCharacters) {
+    return "******";
+  }
+
+  return `******${lastCharacters}`;
+};
+
+type SecretFieldProps = {
+  configured: boolean;
+  lastCharacters: string | null;
+  label: string;
+  replaceMode: boolean;
+  value: string;
+  visible: boolean;
+  onChange: (value: string) => void;
+  onToggleReplace: () => void;
+  onToggleVisibility: () => void;
+};
+
+function SecretField({
+  configured,
+  lastCharacters,
+  label,
+  onChange,
+  onToggleReplace,
+  onToggleVisibility,
+  replaceMode,
+  value,
+  visible
+}: SecretFieldProps) {
+  const configuredSecretTooltip =
+    "La valeur complète reste côté backend et n’est jamais renvoyée au navigateur.";
+
+  return (
+    <Field label={label}>
+      <Card className="flex flex-col gap-3">
+        {replaceMode ? (
+          <div className="secret-field">
+            <div className="secret-input-wrap secret-input-wrap--editing">
+              <button
+                aria-label="Annuler le remplacement"
+                className="secret-prefix-button"
+                onClick={onToggleReplace}
+                type="button"
+              >
+                <FaXmark />
+              </button>
+              <TextInput
+                aria-label={`Nouvelle ${label.toLowerCase()}`}
+                autoComplete="off"
+                className="secret-input secret-input--with-prefix"
+                placeholder={`Saisir une nouvelle ${label.toLowerCase()}`}
+                type={visible ? "text" : "password"}
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+              />
+              <button
+                aria-label={
+                  visible
+                    ? `Masquer la nouvelle ${label.toLowerCase()}`
+                    : `Afficher la nouvelle ${label.toLowerCase()}`
+                }
+                className="secret-visibility-toggle"
+                onClick={onToggleVisibility}
+                type="button"
+              >
+                {visible ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
+              <button
+                aria-label={`Modifier ${label.toLowerCase()}`}
+                className="secret-status-trigger"
+                onClick={onToggleReplace}
+                title={configured ? configuredSecretTooltip : undefined}
+                type="button"
+              >
+                <span className="secret-status-content">
+                  <FaKey />
+                  <span>
+                    {getSecretStatusLabel(configured, lastCharacters)}
+                  </span>
+                </span>
+              </button>
+              {!configured ? (
+                <p className="m-0 text-sm text-ink-700">
+                  Ajoutez une clé pour activer ce fournisseur dans la
+                  configuration RAG.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </Card>
+    </Field>
+  );
+}
+
 export function RagConfigurationPage() {
   const { user, ragConfig, setRagConfig, resetAuth } = useDashboardContext();
   const [showOpenAiApiKey, setShowOpenAiApiKey] = useState(false);
   const [showPineconeApiKey, setShowPineconeApiKey] = useState(false);
-  const [openAiApiKey, setOpenAiApiKey] = useState(
-    ragConfig.openAiApiKey || ""
-  );
-  const [pineconeApiKey, setPineconeApiKey] = useState(
-    ragConfig.pineconeApiKey || ""
-  );
+  const [replaceOpenAiApiKey, setReplaceOpenAiApiKey] = useState(false);
+  const [replacePineconeApiKey, setReplacePineconeApiKey] = useState(false);
+  const [openAiApiKey, setOpenAiApiKey] = useState("");
+  const [pineconeApiKey, setPineconeApiKey] = useState("");
   const [pineconeIndex, setPineconeIndex] = useState(
     ragConfig.pineconeIndex || ""
   );
@@ -59,8 +169,12 @@ export function RagConfigurationPage() {
   const [isConfiguring, setIsConfiguring] = useState(false);
 
   useEffect(() => {
-    setOpenAiApiKey(ragConfig.openAiApiKey || "");
-    setPineconeApiKey(ragConfig.pineconeApiKey || "");
+    setOpenAiApiKey("");
+    setPineconeApiKey("");
+    setReplaceOpenAiApiKey(false);
+    setReplacePineconeApiKey(false);
+    setShowOpenAiApiKey(false);
+    setShowPineconeApiKey(false);
     setPineconeIndex(ragConfig.pineconeIndex || "");
     setPineconeHost(ragConfig.pineconeHost || "");
     setEmbeddingModel(ragConfig.embeddingModel || "text-embedding-3-small");
@@ -80,18 +194,33 @@ export function RagConfigurationPage() {
     setMessage(null);
 
     try {
+      const requestBody: {
+        openAiApiKey?: string;
+        pineconeApiKey?: string;
+        pineconeIndex: string;
+        pineconeHost?: string;
+        embeddingModel: string;
+        chatModel: string;
+      } = {
+        pineconeIndex,
+        pineconeHost: pineconeHost || undefined,
+        embeddingModel,
+        chatModel
+      };
+
+      if (replaceOpenAiApiKey) {
+        requestBody.openAiApiKey = openAiApiKey;
+      }
+
+      if (replacePineconeApiKey) {
+        requestBody.pineconeApiKey = pineconeApiKey;
+      }
+
       const payload = await apiRequest<{ ragConfig: RagConfigSummary }>(
         "/api/rag/configure",
         {
           method: "POST",
-          body: JSON.stringify({
-            openAiApiKey,
-            pineconeApiKey,
-            pineconeIndex,
-            pineconeHost: pineconeHost || undefined,
-            embeddingModel,
-            chatModel
-          })
+          body: JSON.stringify(requestBody)
         }
       );
       setRagConfig(payload.ragConfig);
@@ -115,10 +244,7 @@ export function RagConfigurationPage() {
       <Panel className="page-panel">
         <PanelHeading
           description={
-            <>
-              Configuration globale utilisée par l’indexation, la suppression
-              des vecteurs et la génération finale.
-            </>
+            <>Paramètres utilisés par l’indexation et les requêtes RAG.</>
           }
           icon={<FaGear />}
           title="Configuration du backend RAG"
@@ -150,59 +276,70 @@ export function RagConfigurationPage() {
         </div>
 
         <form className="subpanel" onSubmit={handleConfigure}>
+          <div className="flex flex-col gap-1">
+            <p className="m-0 text-sm font-semibold text-ink-900">
+              Secrets fournisseurs
+            </p>
+            <p className="m-0 text-sm text-ink-700">
+              Vérifiez rapidement quelles clés sont déjà en place, puis
+              remplacez uniquement celles qui changent.
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            <SecretField
+              configured={ragConfig.openAiApiKeyConfigured}
+              label="Clé OpenAI"
+              lastCharacters={ragConfig.openAiApiKeyLast4}
+              replaceMode={replaceOpenAiApiKey}
+              value={openAiApiKey}
+              visible={showOpenAiApiKey}
+              onChange={setOpenAiApiKey}
+              onToggleReplace={() => {
+                setReplaceOpenAiApiKey((current) => !current);
+                setOpenAiApiKey("");
+                setShowOpenAiApiKey(false);
+              }}
+              onToggleVisibility={() =>
+                setShowOpenAiApiKey((current) => !current)
+              }
+            />
+
+            <SecretField
+              configured={ragConfig.pineconeApiKeyConfigured}
+              label="Clé Pinecone"
+              lastCharacters={ragConfig.pineconeApiKeyLast4}
+              replaceMode={replacePineconeApiKey}
+              value={pineconeApiKey}
+              visible={showPineconeApiKey}
+              onChange={setPineconeApiKey}
+              onToggleReplace={() => {
+                setReplacePineconeApiKey((current) => !current);
+                setPineconeApiKey("");
+                setShowPineconeApiKey(false);
+              }}
+              onToggleVisibility={() =>
+                setShowPineconeApiKey((current) => !current)
+              }
+            />
+          </div>
+
+          <Divider className="my-5" />
+
+          <div className="flex flex-col gap-1">
+            <p className="m-0 text-sm font-semibold text-ink-900">
+              Paramètres techniques
+            </p>
+            <p className="m-0 text-sm text-ink-700">
+              Modifiez ici uniquement l’index, le host et les modèles utilisés
+              par le backend.
+            </p>
+          </div>
+
           <div className="config-grid">
-            <Field label="Clé OpenAI">
-              <div className="secret-field">
-                <TextInput
-                  type={showOpenAiApiKey ? "text" : "password"}
-                  value={openAiApiKey}
-                  onChange={(event) => setOpenAiApiKey(event.target.value)}
-                />
-                <Button
-                  aria-label={
-                    showOpenAiApiKey
-                      ? "Masquer la clé OpenAI"
-                      : "Afficher la clé OpenAI"
-                  }
-                  className="whitespace-nowrap"
-                  onClick={() => setShowOpenAiApiKey((current) => !current)}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  {showOpenAiApiKey ? <FaEyeSlash /> : <FaEye />}
-                  <span>{showOpenAiApiKey ? "Masquer" : "Afficher"}</span>
-                </Button>
-              </div>
-            </Field>
-
-            <Field label="Clé Pinecone">
-              <div className="secret-field">
-                <TextInput
-                  type={showPineconeApiKey ? "text" : "password"}
-                  value={pineconeApiKey}
-                  onChange={(event) => setPineconeApiKey(event.target.value)}
-                />
-                <Button
-                  aria-label={
-                    showPineconeApiKey
-                      ? "Masquer la clé Pinecone"
-                      : "Afficher la clé Pinecone"
-                  }
-                  className="whitespace-nowrap"
-                  onClick={() => setShowPineconeApiKey((current) => !current)}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  {showPineconeApiKey ? <FaEyeSlash /> : <FaEye />}
-                  <span>{showPineconeApiKey ? "Masquer" : "Afficher"}</span>
-                </Button>
-              </div>
-            </Field>
-
             <Field label="Index Pinecone">
               <TextInput
+                placeholder="Ex. rag-demo"
                 type="text"
                 value={pineconeIndex}
                 onChange={(event) => setPineconeIndex(event.target.value)}
@@ -211,6 +348,7 @@ export function RagConfigurationPage() {
 
             <Field label="Host Pinecone">
               <TextInput
+                placeholder="Ex. xxx.svc.aped-4627-b74a.pinecone.io"
                 type="text"
                 value={pineconeHost}
                 onChange={(event) => setPineconeHost(event.target.value)}
@@ -219,6 +357,7 @@ export function RagConfigurationPage() {
 
             <Field label="Modèle d’embedding">
               <TextInput
+                placeholder="Ex. text-embedding-3-small"
                 type="text"
                 value={embeddingModel}
                 onChange={(event) => setEmbeddingModel(event.target.value)}
@@ -227,6 +366,7 @@ export function RagConfigurationPage() {
 
             <Field label="Modèle de chat">
               <TextInput
+                placeholder="Ex. gpt-4.1-mini"
                 type="text"
                 value={chatModel}
                 onChange={(event) => setChatModel(event.target.value)}
@@ -237,7 +377,9 @@ export function RagConfigurationPage() {
           <Button disabled={isConfiguring} fullWidth type="submit">
             <FaGear />
             <span>
-              {isConfiguring ? "Enregistrement…" : "Configurer le backend RAG"}
+              {isConfiguring
+                ? "Enregistrement…"
+                : "Enregistrer la configuration"}
             </span>
           </Button>
         </form>

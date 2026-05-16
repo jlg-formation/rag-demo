@@ -23,8 +23,10 @@ export type DocumentSummary = {
 
 export type RagConfigSummary = {
   configured: boolean;
-  openAiApiKey: string | null;
-  pineconeApiKey: string | null;
+  openAiApiKeyConfigured: boolean;
+  openAiApiKeyLast4: string | null;
+  pineconeApiKeyConfigured: boolean;
+  pineconeApiKeyLast4: string | null;
   pineconeIndex: string | null;
   pineconeHost: string | null;
   embeddingModel: string | null;

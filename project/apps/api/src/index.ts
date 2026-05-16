@@ -66,12 +66,22 @@ const toDocumentSummary = (document: DocumentRecord) => ({
   createdBy: document.createdBy
 });
 
+const getSecretLastCharacters = (value: string | null | undefined) => {
+  if (!value) {
+    return null;
+  }
+
+  return value.length <= 4 ? value : value.slice(-4);
+};
+
 const toRagSettingsSummary = (settings: RagSettingsRecord | null) =>
   settings
     ? {
         configured: true,
-        openAiApiKey: settings.openAiApiKey,
-        pineconeApiKey: settings.pineconeApiKey,
+        openAiApiKeyConfigured: Boolean(settings.openAiApiKey),
+        openAiApiKeyLast4: getSecretLastCharacters(settings.openAiApiKey),
+        pineconeApiKeyConfigured: Boolean(settings.pineconeApiKey),
+        pineconeApiKeyLast4: getSecretLastCharacters(settings.pineconeApiKey),
         pineconeIndex: settings.pineconeIndex,
         pineconeHost: settings.pineconeHost || null,
         embeddingModel: settings.embeddingModel,
@@ -82,8 +92,10 @@ const toRagSettingsSummary = (settings: RagSettingsRecord | null) =>
       }
     : {
         configured: false,
-        openAiApiKey: null,
-        pineconeApiKey: null,
+        openAiApiKeyConfigured: false,
+        openAiApiKeyLast4: null,
+        pineconeApiKeyConfigured: false,
+        pineconeApiKeyLast4: null,
         pineconeIndex: null,
         pineconeHost: null,
         embeddingModel: null,
@@ -597,11 +609,23 @@ const app = new Elysia()
         );
       }
 
-      if (
-        !body.openAiApiKey.trim() ||
-        !body.pineconeApiKey.trim() ||
-        !body.pineconeIndex.trim()
-      ) {
+      const existingSettings = store.getRagSettings();
+      const nextOpenAiApiKey = body.openAiApiKey?.trim()
+        ? body.openAiApiKey.trim()
+        : body.openAiApiKey === undefined
+          ? existingSettings?.openAiApiKey
+          : "";
+      const nextPineconeApiKey = body.pineconeApiKey?.trim()
+        ? body.pineconeApiKey.trim()
+        : body.pineconeApiKey === undefined
+          ? existingSettings?.pineconeApiKey
+          : "";
+      const nextPineconeIndex = body.pineconeIndex.trim();
+      const nextPineconeHost = body.pineconeHost?.trim()
+        ? body.pineconeHost.trim()
+        : undefined;
+
+      if (!nextOpenAiApiKey || !nextPineconeApiKey || !nextPineconeIndex) {
         return badRequest(
           set,
           "La configuration OpenAI et Pinecone est incomplete."
@@ -610,15 +634,15 @@ const app = new Elysia()
 
       try {
         const pineconeHost = await resolvePineconeHost({
-          pineconeApiKey: body.pineconeApiKey,
-          pineconeIndex: body.pineconeIndex,
-          pineconeHost: body.pineconeHost
+          pineconeApiKey: nextPineconeApiKey,
+          pineconeIndex: nextPineconeIndex,
+          pineconeHost: nextPineconeHost
         });
 
         const settings = await store.setRagSettings({
-          openAiApiKey: body.openAiApiKey,
-          pineconeApiKey: body.pineconeApiKey,
-          pineconeIndex: body.pineconeIndex,
+          openAiApiKey: nextOpenAiApiKey,
+          pineconeApiKey: nextPineconeApiKey,
+          pineconeIndex: nextPineconeIndex,
           pineconeHost,
           embeddingModel: body.embeddingModel || DEFAULT_EMBEDDING_MODEL,
           chatModel: body.chatModel || DEFAULT_CHAT_MODEL,
@@ -633,7 +657,7 @@ const app = new Elysia()
       } catch (error) {
         set.status = 500;
         return {
-          error: body.pineconeHost?.trim()
+          error: nextPineconeHost
             ? handleError(error)
             : `${handleError(error)} Fournissez explicitement le host Pinecone si l'index ne peut pas etre resolu automatiquement.`
         };
@@ -641,8 +665,8 @@ const app = new Elysia()
     },
     {
       body: t.Object({
-        openAiApiKey: t.String(),
-        pineconeApiKey: t.String(),
+        openAiApiKey: t.Optional(t.String()),
+        pineconeApiKey: t.Optional(t.String()),
         pineconeIndex: t.String(),
         pineconeHost: t.Optional(t.String()),
         embeddingModel: t.Optional(t.String()),

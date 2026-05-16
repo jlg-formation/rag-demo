@@ -22,17 +22,14 @@ export function PasswordVisibilityButton({
   hideLabel
 }: PasswordVisibilityButtonProps) {
   return (
-    <Button
+    <button
       aria-label={shown ? hideLabel : showLabel}
-      className="whitespace-nowrap"
+      className="secret-visibility-toggle"
       onClick={onToggle}
-      size="sm"
       type="button"
-      variant="secondary"
     >
       {shown ? <FaEyeSlash /> : <FaEye />}
-      <span>{shown ? "Masquer" : "Afficher"}</span>
-    </Button>
+    </button>
   );
 }
 
