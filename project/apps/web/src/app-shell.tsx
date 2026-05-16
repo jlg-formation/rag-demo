@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, lazy, useEffect, useState } from "react";
 import {
   FaArrowRightFromBracket,
   FaArrowRightToBracket,
@@ -40,6 +40,11 @@ import {
   StatusChip,
   TextInput
 } from "./components/ui";
+
+const TiktokenDemoPage = lazy(async () => {
+  const module = await import("./pages/unit-demos");
+  return { default: module.TiktokenDemoPage };
+});
 
 function AppShellLoading() {
   return (
@@ -184,6 +189,14 @@ function DashboardLayout({
 }: DashboardContextValue) {
   const location = useLocation();
   const navigationItems = getNavigationItems(user.isAdmin);
+  const navigationSections = Array.from(
+    navigationItems.reduce((sections, item) => {
+      const sectionItems = sections.get(item.section) || [];
+      sectionItems.push(item);
+      sections.set(item.section, sectionItems);
+      return sections;
+    }, new Map<string, typeof navigationItems>())
+  );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -244,28 +257,35 @@ function DashboardLayout({
             </div>
           </div>
 
-          <nav className="grid gap-2">
-            {navigationItems.map((item) => (
-              <NavLink
-                aria-label={item.label}
-                className={({ isActive }) =>
-                  [
-                    "group flex items-center rounded-control font-bold transition duration-150 ease-out",
-                    "gap-3 px-4 py-3.5",
-                    isActive
-                      ? "bg-linear-to-br from-brand-500 to-brand-600 text-white shadow-[0_14px_24px_rgba(216,95,61,0.18)]"
-                      : "bg-ink-950/5 text-ink-900 hover:bg-ink-950/8"
-                  ].join(" ")
-                }
-                end
-                key={item.to}
-                to={item.to}
-              >
-                <span className="flex h-6 w-6 items-center justify-center text-[1rem]">
-                  <item.icon />
-                </span>
-                <span className="truncate">{item.label}</span>
-              </NavLink>
+          <nav className="grid gap-4">
+            {navigationSections.map(([section, items]) => (
+              <div className="grid gap-2" key={section}>
+                <Eyebrow className="mb-1 px-2 text-[0.68rem] tracking-[0.16em] text-ink-700">
+                  {section}
+                </Eyebrow>
+                {items.map((item) => (
+                  <NavLink
+                    aria-label={item.label}
+                    className={({ isActive }) =>
+                      [
+                        "group flex items-center rounded-control font-bold transition duration-150 ease-out",
+                        "gap-3 px-4 py-3.5",
+                        isActive
+                          ? "bg-linear-to-br from-brand-500 to-brand-600 text-white shadow-[0_14px_24px_rgba(216,95,61,0.18)]"
+                          : "bg-ink-950/5 text-ink-900 hover:bg-ink-950/8"
+                      ].join(" ")
+                    }
+                    end
+                    key={item.to}
+                    to={item.to}
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center text-[1rem]">
+                      <item.icon />
+                    </span>
+                    <span className="truncate">{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
             ))}
           </nav>
 
@@ -397,6 +417,14 @@ export function AppRoutes() {
         <Route path="rag/configuration" element={<RagConfigurationPage />} />
         <Route path="documents" element={<DocumentsListPage />} />
         <Route path="documents/indexer" element={<DocumentIndexPage />} />
+        <Route
+          path="unit-demos/tiktoken"
+          element={
+            <Suspense fallback={<AppShellLoading />}>
+              <TiktokenDemoPage />
+            </Suspense>
+          }
+        />
         <Route path="groups" element={<GroupsPage />} />
         <Route path="users" element={<UsersPage />} />
       </Route>

@@ -1,5 +1,6 @@
 import type { IconType } from "react-icons";
 import {
+  FaCode,
   FaFileLines,
   FaGear,
   FaLayerGroup,
@@ -28,25 +29,58 @@ export type NavigationItem = {
   to: string;
   label: string;
   icon: IconType;
+  section: string;
 };
 
 export const getNavigationItems = (isAdmin: boolean): NavigationItem[] => [
-  { to: "/app/rag", label: "Question RAG", icon: FaWandSparkles },
+  {
+    to: "/app/rag",
+    label: "Question RAG",
+    icon: FaWandSparkles,
+    section: "RAG"
+  },
   ...(isAdmin
     ? [
         {
           to: "/app/rag/configuration",
           label: "Config RAG",
-          icon: FaGear
+          icon: FaGear,
+          section: "RAG"
         }
       ]
     : []),
-  { to: "/app/documents", label: "Documents", icon: FaFileLines },
-  { to: "/app/documents/indexer", label: "Indexer", icon: FaPlus },
+  {
+    to: "/app/documents",
+    label: "Documents",
+    icon: FaFileLines,
+    section: "Contenu"
+  },
+  {
+    to: "/app/documents/indexer",
+    label: "Indexer",
+    icon: FaPlus,
+    section: "Contenu"
+  },
+  {
+    to: "/app/unit-demos/tiktoken",
+    label: "Tiktoken",
+    icon: FaCode,
+    section: "Démo unitaire"
+  },
   ...(isAdmin
     ? [
-        { to: "/app/groups", label: "Groupes", icon: FaLayerGroup },
-        { to: "/app/users", label: "Utilisateurs", icon: FaUsers }
+        {
+          to: "/app/groups",
+          label: "Groupes",
+          icon: FaLayerGroup,
+          section: "Administration"
+        },
+        {
+          to: "/app/users",
+          label: "Utilisateurs",
+          icon: FaUsers,
+          section: "Administration"
+        }
       ]
     : [])
 ];
