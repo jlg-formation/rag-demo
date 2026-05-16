@@ -4,6 +4,8 @@ import path from "node:path";
 const DEFAULT_API_BASE_URL = "http://localhost:3000";
 const DEFAULT_CONTENT_DIR = path.resolve("content");
 const DEFAULT_IMPORT_PASSWORD = "demo-import-2026";
+const DEFAULT_CHUNK_MODE = "characters";
+const ALLOWED_CHUNK_MODES = new Set(["characters", "words", "tokens"]);
 
 const parseIntegerArg = (value, flagName, minimum) => {
   const parsed = Number.parseInt(String(value), 10);
@@ -19,6 +21,18 @@ const parseIntegerArg = (value, flagName, minimum) => {
   return parsed;
 };
 
+const parseChunkModeArg = (value, flagName) => {
+  const normalized = String(value).trim();
+
+  if (!ALLOWED_CHUNK_MODES.has(normalized)) {
+    throw new Error(
+      `${flagName} doit etre l'une des valeurs suivantes : characters, words, tokens.`
+    );
+  }
+
+  return normalized;
+};
+
 const parseArgs = (argv) => {
   const args = {
     apiBaseUrl: DEFAULT_API_BASE_URL,
@@ -26,6 +40,7 @@ const parseArgs = (argv) => {
     adminEmail: "admin",
     adminPassword: "admin",
     importPassword: DEFAULT_IMPORT_PASSWORD,
+    chunkMode: undefined,
     chunkSize: undefined,
     chunkOverlap: undefined,
     dryRun: false
@@ -66,6 +81,12 @@ const parseArgs = (argv) => {
 
     if (token === "--chunk-size") {
       args.chunkSize = parseIntegerArg(argv[index + 1], token, 1);
+      index += 1;
+      continue;
+    }
+
+    if (token === "--chunk-mode") {
+      args.chunkMode = parseChunkModeArg(argv[index + 1], token);
       index += 1;
       continue;
     }
@@ -190,15 +211,23 @@ const logProgress = ({ completedFiles, totalFiles, group, fileName }) => {
   );
 };
 
-const logChunkingConfig = ({ chunkSize, chunkOverlap, source }) => {
+const logChunkingConfig = ({ chunkMode, chunkSize, chunkOverlap, source }) => {
   console.log(
-    `[import] Parametres de decoupage (${source}): chunkSize=${chunkSize}, chunkOverlap=${chunkOverlap}`
+    `[import] Parametres de decoupage (${source}): chunkMode=${chunkMode}, chunkSize=${chunkSize}, chunkOverlap=${chunkOverlap}`
   );
 };
 
 const resolveChunkingConfig = ({ args, ragConfig }) => {
+  const chunkMode =
+    args.chunkMode ?? ragConfig?.chunkMode ?? DEFAULT_CHUNK_MODE;
   const chunkSize = args.chunkSize ?? ragConfig?.chunkSize;
   const chunkOverlap = args.chunkOverlap ?? ragConfig?.chunkOverlap;
+
+  if (!ALLOWED_CHUNK_MODES.has(chunkMode)) {
+    throw new Error(
+      "Impossible de determiner un chunkMode valide pour l'import."
+    );
+  }
 
   if (chunkSize === undefined || chunkOverlap === undefined) {
     throw new Error(
@@ -209,9 +238,12 @@ const resolveChunkingConfig = ({ args, ragConfig }) => {
   validateChunkingConfig({ chunkSize, chunkOverlap });
 
   const usesCliOverride =
-    args.chunkSize !== undefined || args.chunkOverlap !== undefined;
+    args.chunkMode !== undefined ||
+    args.chunkSize !== undefined ||
+    args.chunkOverlap !== undefined;
 
   return {
+    chunkMode,
     chunkSize,
     chunkOverlap,
     source: usesCliOverride ? "CLI + backend" : "backend",
@@ -224,11 +256,13 @@ const uploadFile = async ({
   cookie,
   group,
   file,
+  chunkMode,
   chunkSize,
   chunkOverlap
 }) => {
   const formData = new FormData();
   formData.append("group", group);
+  formData.append("chunkMode", String(chunkMode));
   formData.append("chunkSize", String(chunkSize));
   formData.append("chunkOverlap", String(chunkOverlap));
 
@@ -425,6 +459,7 @@ const main = async () => {
         cookie: importerCookie,
         group: group.name,
         file,
+        chunkMode: chunkingConfig.chunkMode,
         chunkSize: chunkingConfig.chunkSize,
         chunkOverlap: chunkingConfig.chunkOverlap
       });

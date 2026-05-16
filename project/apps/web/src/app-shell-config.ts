@@ -20,6 +20,7 @@ export const EMPTY_RAG_CONFIG: RagConfigSummary = {
   pineconeHost: null,
   embeddingModel: null,
   chatModel: null,
+  chunkMode: "characters",
   chunkSize: 320,
   chunkOverlap: 40,
   chunkStride: 280,

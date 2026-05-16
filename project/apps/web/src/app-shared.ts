@@ -1,5 +1,26 @@
 import { useOutletContext } from "react-router-dom";
-import type { DashboardContextValue } from "./app-types";
+import type { ChunkMode, DashboardContextValue } from "./app-types";
+
+export const CHUNK_MODE_OPTIONS: Array<{ value: ChunkMode; label: string }> = [
+  { value: "characters", label: "Caractères" },
+  { value: "words", label: "Mots" },
+  { value: "tokens", label: "Tokens" }
+];
+
+export const getChunkModeLabel = (chunkMode: ChunkMode) =>
+  CHUNK_MODE_OPTIONS.find((option) => option.value === chunkMode)?.label ||
+  "Caractères";
+
+export const getChunkUnitLabel = (chunkMode: ChunkMode) => {
+  switch (chunkMode) {
+    case "words":
+      return "mots";
+    case "tokens":
+      return "tokens";
+    default:
+      return "caractères";
+  }
+};
 
 export const sampleDocument = `Le Retrieval-Augmented Generation, ou RAG, combine une phase de recherche documentaire et une phase de génération assistée par contexte. Les documents sont découpés en morceaux, vectorisés, puis stockés dans une base adaptée à la recherche sémantique.
 

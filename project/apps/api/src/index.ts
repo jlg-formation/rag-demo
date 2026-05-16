@@ -2,6 +2,7 @@ import { cors } from "@elysiajs/cors";
 import { Elysia, t } from "elysia";
 import {
   DEFAULT_CHAT_MODEL,
+  DEFAULT_CHUNK_MODE,
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
   DEFAULT_EMBEDDING_MODEL,
@@ -10,6 +11,7 @@ import {
   generateAnswer,
   getChunkingConfig,
   indexDocumentInPinecone,
+  isChunkMode,
   queryAccessibleChunks,
   resolvePineconeHost
 } from "./rag";
@@ -23,6 +25,7 @@ import {
 } from "./security";
 import { DataStore } from "./store";
 import type {
+  ChunkMode,
   DocumentRecord,
   ProviderConfig,
   RagSettingsRecord,
@@ -65,6 +68,9 @@ const toDocumentSummary = (document: DocumentRecord) => ({
   group: document.group,
   sourceText: document.sourceText,
   chunkCount: document.chunkCount,
+  chunkMode: document.chunkMode ?? DEFAULT_CHUNK_MODE,
+  chunkSize: document.chunkSize ?? DEFAULT_CHUNK_SIZE,
+  chunkOverlap: document.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP,
   createdAt: document.createdAt,
   createdBy: document.createdBy
 });
@@ -93,6 +99,7 @@ const toRagSettingsSummary = (settings: RagSettingsRecord | null) =>
           pineconeHost: settings.pineconeHost || null,
           embeddingModel: settings.embeddingModel,
           chatModel: settings.chatModel,
+          chunkMode: settings.chunkMode ?? DEFAULT_CHUNK_MODE,
           chunkSize,
           chunkOverlap,
           chunkStride,
@@ -111,6 +118,7 @@ const toRagSettingsSummary = (settings: RagSettingsRecord | null) =>
         pineconeHost: null,
         embeddingModel: null,
         chatModel: null,
+        chunkMode: DEFAULT_CHUNK_MODE,
         chunkSize: DEFAULT_CHUNK_SIZE,
         chunkOverlap: DEFAULT_CHUNK_OVERLAP,
         chunkStride: DEFAULT_CHUNK_SIZE - DEFAULT_CHUNK_OVERLAP,
@@ -203,6 +211,7 @@ const indexDocumentForUser = async (input: {
   title: string;
   group: string;
   sourceText: string;
+  chunkMode?: ChunkMode;
   chunkSize?: number;
   chunkOverlap?: number;
   user: UserRecord;
@@ -235,16 +244,21 @@ const indexDocumentForUser = async (input: {
     return ragSettings;
   }
 
-  const chunkSize = Math.max(
-    1,
-    Math.floor(input.chunkSize ?? ragSettings.chunkSize ?? DEFAULT_CHUNK_SIZE)
-  );
-  const chunkOverlap = Math.max(
-    0,
-    Math.floor(
-      input.chunkOverlap ?? ragSettings.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP
-    )
-  );
+  const resolvedChunkMode =
+    input.chunkMode ?? ragSettings.chunkMode ?? DEFAULT_CHUNK_MODE;
+
+  if (!isChunkMode(resolvedChunkMode)) {
+    return badRequest(
+      input.set,
+      "Le mode de chunking doit etre characters, words ou tokens."
+    );
+  }
+
+  const { chunkMode, chunkSize, chunkOverlap } = getChunkingConfig({
+    chunkMode: resolvedChunkMode,
+    chunkSize: input.chunkSize ?? ragSettings.chunkSize,
+    chunkOverlap: input.chunkOverlap ?? ragSettings.chunkOverlap
+  });
 
   if (chunkOverlap >= chunkSize) {
     return badRequest(
@@ -258,6 +272,7 @@ const indexDocumentForUser = async (input: {
     const indexed = await indexDocumentInPinecone(
       {
         ...ragSettings,
+        chunkMode,
         chunkSize,
         chunkOverlap
       },
@@ -276,6 +291,9 @@ const indexDocumentForUser = async (input: {
       group,
       sourceText,
       chunkCount: indexed.chunkCount,
+      chunkMode,
+      chunkSize,
+      chunkOverlap,
       vectorIds: indexed.vectorIds,
       createdAt: new Date().toISOString(),
       createdBy: input.user.email
@@ -515,6 +533,7 @@ const app = new Elysia()
         title: body.title,
         group: body.group,
         sourceText: body.sourceText,
+        chunkMode: body.chunkMode,
         chunkSize: body.chunkSize,
         chunkOverlap: body.chunkOverlap,
         user: auth.user,
@@ -532,6 +551,13 @@ const app = new Elysia()
         title: t.String(),
         group: t.String(),
         sourceText: t.String(),
+        chunkMode: t.Optional(
+          t.Union([
+            t.Literal("characters"),
+            t.Literal("words"),
+            t.Literal("tokens")
+          ])
+        ),
         chunkSize: t.Optional(t.Number()),
         chunkOverlap: t.Optional(t.Number())
       })
@@ -545,6 +571,11 @@ const app = new Elysia()
 
     const formData = await request.formData();
     const group = String(formData.get("group") || "").trim();
+    const chunkModeValue = formData.get("chunkMode");
+    const chunkMode =
+      typeof chunkModeValue === "string" && chunkModeValue.trim()
+        ? chunkModeValue.trim()
+        : undefined;
     const chunkSize = Number(formData.get("chunkSize") || "") || undefined;
     const chunkOverlap =
       Number(formData.get("chunkOverlap") || "") || undefined;
@@ -558,6 +589,13 @@ const app = new Elysia()
 
     if (!files.length) {
       return badRequest(set, "Au moins un fichier doit etre fourni.");
+    }
+
+    if (chunkMode !== undefined && !isChunkMode(chunkMode)) {
+      return badRequest(
+        set,
+        "Le mode de chunking doit etre characters, words ou tokens."
+      );
     }
 
     if (
@@ -579,6 +617,7 @@ const app = new Elysia()
         title: normalizeDocumentTitle(file.name),
         group,
         sourceText,
+        chunkMode,
         chunkSize,
         chunkOverlap,
         user: auth.user,
@@ -674,20 +713,22 @@ const app = new Elysia()
       const nextPineconeHost = body.pineconeHost?.trim()
         ? body.pineconeHost.trim()
         : undefined;
-      const nextChunkSize = Math.max(
-        1,
-        Math.floor(
-          body.chunkSize ?? existingSettings?.chunkSize ?? DEFAULT_CHUNK_SIZE
-        )
-      );
-      const nextChunkOverlap = Math.max(
-        0,
-        Math.floor(
-          body.chunkOverlap ??
-            existingSettings?.chunkOverlap ??
-            DEFAULT_CHUNK_OVERLAP
-        )
-      );
+      const nextChunkMode =
+        body.chunkMode ?? existingSettings?.chunkMode ?? DEFAULT_CHUNK_MODE;
+
+      if (!isChunkMode(nextChunkMode)) {
+        return badRequest(
+          set,
+          "Le mode de chunking doit etre characters, words ou tokens."
+        );
+      }
+
+      const { chunkSize: nextChunkSize, chunkOverlap: nextChunkOverlap } =
+        getChunkingConfig({
+          chunkMode: nextChunkMode,
+          chunkSize: body.chunkSize ?? existingSettings?.chunkSize,
+          chunkOverlap: body.chunkOverlap ?? existingSettings?.chunkOverlap
+        });
 
       if (!nextOpenAiApiKey || !nextPineconeApiKey || !nextPineconeIndex) {
         return badRequest(
@@ -717,6 +758,7 @@ const app = new Elysia()
           pineconeHost,
           embeddingModel: body.embeddingModel || DEFAULT_EMBEDDING_MODEL,
           chatModel: body.chatModel || DEFAULT_CHAT_MODEL,
+          chunkMode: nextChunkMode,
           chunkSize: nextChunkSize,
           chunkOverlap: nextChunkOverlap,
           namespace: PINECONE_NAMESPACE,
@@ -744,6 +786,13 @@ const app = new Elysia()
         pineconeHost: t.Optional(t.String()),
         embeddingModel: t.Optional(t.String()),
         chatModel: t.Optional(t.String()),
+        chunkMode: t.Optional(
+          t.Union([
+            t.Literal("characters"),
+            t.Literal("words"),
+            t.Literal("tokens")
+          ])
+        ),
         chunkSize: t.Optional(t.Number()),
         chunkOverlap: t.Optional(t.Number())
       })

@@ -1,15 +1,20 @@
 type ChunkSchemaProps = {
   chunkSize: number;
   chunkOverlap: number;
+  unitLabel?: string;
 };
 
-export function ChunkingSchema({ chunkSize, chunkOverlap }: ChunkSchemaProps) {
+export function ChunkingSchema({
+  chunkSize,
+  chunkOverlap,
+  unitLabel = "unités"
+}: ChunkSchemaProps) {
   const stride = Math.max(1, chunkSize - chunkOverlap);
   const totalLength = chunkSize + stride * 2;
   const summary = [
-    `Taille du chunk : ${chunkSize}`,
-    `overlap : ${chunkOverlap}`,
-    `stride : ${stride}`
+    `Taille du chunk : ${chunkSize} ${unitLabel}`,
+    `overlap : ${chunkOverlap} ${unitLabel}`,
+    `stride : ${stride} ${unitLabel}`
   ].join(" · ");
   const windows = [0, stride, stride * 2].map((start, index) => ({
     index,
@@ -83,8 +88,9 @@ export function ChunkingSchema({ chunkSize, chunkOverlap }: ChunkSchemaProps) {
 
         <div className="chunk-schema__legend">
           <span>
-            Un chunk couvre {chunkSize} unités, avec un overlap de{" "}
-            {chunkOverlap} avec le suivant, pour un stride effectif de {stride}.
+            Un chunk couvre {chunkSize} {unitLabel}, avec un overlap de{" "}
+            {chunkOverlap} {unitLabel} avec le suivant, pour un stride effectif
+            de {stride} {unitLabel}.
           </span>
         </div>
       </div>

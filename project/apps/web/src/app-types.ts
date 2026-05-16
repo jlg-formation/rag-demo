@@ -1,3 +1,5 @@
+export type ChunkMode = "characters" | "words" | "tokens";
+
 export type UserSummary = {
   email: string;
   displayName: string | null;
@@ -17,6 +19,9 @@ export type DocumentSummary = {
   group: string;
   sourceText: string;
   chunkCount: number;
+  chunkMode: ChunkMode;
+  chunkSize: number;
+  chunkOverlap: number;
   createdAt: string;
   createdBy: string;
 };
@@ -31,6 +36,7 @@ export type RagConfigSummary = {
   pineconeHost: string | null;
   embeddingModel: string | null;
   chatModel: string | null;
+  chunkMode: ChunkMode;
   chunkSize: number;
   chunkOverlap: number;
   chunkStride: number;

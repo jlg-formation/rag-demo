@@ -22,14 +22,18 @@ import {
   ApiError,
   apiRequest,
   buildDocumentFileKey,
+  CHUNK_MODE_OPTIONS,
   formatDateTime,
   formatFileSize,
+  getChunkModeLabel,
+  getChunkUnitLabel,
   getDocumentTitleFromFileName,
   isAcceptedDocumentFile,
   sampleDocument,
   useDashboardContext
 } from "../app-shared";
 import type {
+  ChunkMode,
   DocumentSummary,
   DocumentsPayload,
   GroupSummary,
@@ -56,6 +60,7 @@ export function DocumentIndexPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [title, setTitle] = useState("Politique RAG d’équipe");
   const [group, setGroup] = useState("");
+  const [chunkMode, setChunkMode] = useState<ChunkMode>(ragConfig.chunkMode);
   const [chunkSize, setChunkSize] = useState(String(ragConfig.chunkSize));
   const [chunkOverlap, setChunkOverlap] = useState(
     String(ragConfig.chunkOverlap)
@@ -76,6 +81,7 @@ export function DocumentIndexPage() {
     Number(chunkOverlap) || ragConfig.chunkOverlap
   );
   const chunkStrideValue = chunkSizeValue - chunkOverlapValue;
+  const chunkUnitLabel = getChunkUnitLabel(chunkMode);
 
   const handleUnauthorized = (error: unknown) => {
     if (error instanceof ApiError && error.status === 401) {
@@ -110,9 +116,10 @@ export function DocumentIndexPage() {
   }, []);
 
   useEffect(() => {
+    setChunkMode(ragConfig.chunkMode);
     setChunkSize(String(ragConfig.chunkSize));
     setChunkOverlap(String(ragConfig.chunkOverlap));
-  }, [ragConfig.chunkOverlap, ragConfig.chunkSize]);
+  }, [ragConfig.chunkMode, ragConfig.chunkOverlap, ragConfig.chunkSize]);
 
   const appendFiles = (incomingFiles: File[]) => {
     const acceptedFiles = incomingFiles.filter(isAcceptedDocumentFile);
@@ -177,6 +184,7 @@ export function DocumentIndexPage() {
     try {
       const formData = new FormData();
       formData.append("group", group);
+      formData.append("chunkMode", chunkMode);
       formData.append("chunkSize", String(chunkSizeValue));
       formData.append("chunkOverlap", String(chunkOverlapValue));
       for (const file of files) {
@@ -217,6 +225,7 @@ export function DocumentIndexPage() {
           title,
           group,
           sourceText,
+          chunkMode,
           chunkSize: chunkSizeValue,
           chunkOverlap: chunkOverlapValue
         })
@@ -253,8 +262,12 @@ export function DocumentIndexPage() {
             Paramètres de chunking actifs
           </p>
           <p className="m-0 text-sm text-ink-700">
-            Valeurs par défaut du backend : taille {ragConfig.chunkSize},
-            overlap {ragConfig.chunkOverlap}, stride {ragConfig.chunkStride}.
+            Valeurs par défaut du backend : mode{" "}
+            {getChunkModeLabel(ragConfig.chunkMode)}, taille{" "}
+            {ragConfig.chunkSize} {getChunkUnitLabel(ragConfig.chunkMode)},
+            overlap {ragConfig.chunkOverlap}{" "}
+            {getChunkUnitLabel(ragConfig.chunkMode)}, stride{" "}
+            {ragConfig.chunkStride} {getChunkUnitLabel(ragConfig.chunkMode)}.
           </p>
         </Card>
 
@@ -277,7 +290,22 @@ export function DocumentIndexPage() {
           </Field>
 
           <div className="config-grid">
-            <Field label="Taille de chunk (caractères)">
+            <Field label="Mode de chunking">
+              <SelectInput
+                value={chunkMode}
+                onChange={(event) =>
+                  setChunkMode(event.target.value as ChunkMode)
+                }
+              >
+                {CHUNK_MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+
+            <Field label={`Taille de chunk (${chunkUnitLabel})`}>
               <TextInput
                 min={1}
                 step={1}
@@ -287,7 +315,7 @@ export function DocumentIndexPage() {
               />
             </Field>
 
-            <Field label="Overlap (caractères)">
+            <Field label={`Overlap (${chunkUnitLabel})`}>
               <TextInput
                 min={0}
                 step={1}
@@ -304,12 +332,19 @@ export function DocumentIndexPage() {
             </p>
             <p className="m-0 text-sm text-ink-700">
               {chunkStrideValue > 0
-                ? `${chunkStrideValue} caractères (${chunkSizeValue} - ${chunkOverlapValue})`
+                ? `${chunkStrideValue} ${chunkUnitLabel} (${chunkSizeValue} - ${chunkOverlapValue})`
                 : "Le stride doit rester strictement positif."}
             </p>
+            {chunkMode === "tokens" ? (
+              <p className="m-0 text-sm text-ink-700">
+                Le mode tokens utilise tiktoken pour compter et découper les
+                chunks.
+              </p>
+            ) : null}
             <ChunkingSchema
               chunkOverlap={chunkOverlapValue}
               chunkSize={chunkSizeValue}
+              unitLabel={chunkUnitLabel}
             />
           </Card>
 

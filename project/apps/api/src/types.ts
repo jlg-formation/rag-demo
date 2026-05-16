@@ -1,3 +1,5 @@
+export type ChunkMode = "characters" | "words" | "tokens";
+
 export type ProviderConfig = {
   openAiApiKey: string;
   pineconeApiKey: string;
@@ -5,6 +7,7 @@ export type ProviderConfig = {
   pineconeHost?: string;
   embeddingModel: string;
   chatModel: string;
+  chunkMode?: ChunkMode;
   chunkSize?: number;
   chunkOverlap?: number;
 };
@@ -35,6 +38,9 @@ export type DocumentRecord = {
   group: string;
   sourceText: string;
   chunkCount: number;
+  chunkMode?: ChunkMode;
+  chunkSize?: number;
+  chunkOverlap?: number;
   vectorIds: string[];
   createdAt: string;
   createdBy: string;

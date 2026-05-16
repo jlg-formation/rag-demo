@@ -19,10 +19,13 @@ import { Navigate } from "react-router-dom";
 import {
   ApiError,
   apiRequest,
+  CHUNK_MODE_OPTIONS,
   formatDateTime,
+  getChunkModeLabel,
+  getChunkUnitLabel,
   useDashboardContext
 } from "../app-shared";
-import type { QueryResponse, RagConfigSummary } from "../app-types";
+import type { ChunkMode, QueryResponse, RagConfigSummary } from "../app-types";
 import {
   Banner,
   Button,
@@ -32,8 +35,10 @@ import {
   Field,
   Panel,
   PanelHeading,
+  SelectInput,
   TextInput
 } from "../components/ui";
+import { ChunkingSchema } from "../components/chunk-schema";
 
 const getSecretStatusLabel = (
   configured: boolean,
@@ -146,6 +151,7 @@ function SecretField({
 
 export function RagConfigurationPage() {
   const { user, ragConfig, setRagConfig, resetAuth } = useDashboardContext();
+  const defaultChunkMode: ChunkMode = "characters";
   const defaultChunkSize = 320;
   const defaultChunkOverlap = 40;
   const [showOpenAiApiKey, setShowOpenAiApiKey] = useState(false);
@@ -166,6 +172,9 @@ export function RagConfigurationPage() {
   const [chatModel, setChatModel] = useState(
     ragConfig.chatModel || "gpt-4.1-mini"
   );
+  const [chunkMode, setChunkMode] = useState<ChunkMode>(
+    ragConfig.chunkMode || defaultChunkMode
+  );
   const [chunkSize, setChunkSize] = useState(
     String(ragConfig.chunkSize || 320)
   );
@@ -181,6 +190,7 @@ export function RagConfigurationPage() {
     Number(chunkOverlap) || defaultChunkOverlap
   );
   const chunkStrideValue = chunkSizeValue - chunkOverlapValue;
+  const chunkUnitLabel = getChunkUnitLabel(chunkMode);
 
   useEffect(() => {
     setOpenAiApiKey("");
@@ -193,9 +203,10 @@ export function RagConfigurationPage() {
     setPineconeHost(ragConfig.pineconeHost || "");
     setEmbeddingModel(ragConfig.embeddingModel || "text-embedding-3-small");
     setChatModel(ragConfig.chatModel || "gpt-4.1-mini");
+    setChunkMode(ragConfig.chunkMode || defaultChunkMode);
     setChunkSize(String(ragConfig.chunkSize || 320));
     setChunkOverlap(String(ragConfig.chunkOverlap || 40));
-  }, [ragConfig]);
+  }, [defaultChunkMode, ragConfig]);
 
   const handleUnauthorized = (error: unknown) => {
     if (error instanceof ApiError && error.status === 401) {
@@ -217,6 +228,7 @@ export function RagConfigurationPage() {
         pineconeHost?: string;
         embeddingModel: string;
         chatModel: string;
+        chunkMode: ChunkMode;
         chunkSize: number;
         chunkOverlap: number;
       } = {
@@ -224,6 +236,7 @@ export function RagConfigurationPage() {
         pineconeHost: pineconeHost || undefined,
         embeddingModel,
         chatModel,
+        chunkMode,
         chunkSize: chunkSizeValue,
         chunkOverlap: chunkOverlapValue
       };
@@ -306,11 +319,16 @@ export function RagConfigurationPage() {
               <span>Chunking</span>
             </p>
             <p>
-              {ragConfig.chunkSize} caractères, overlap {ragConfig.chunkOverlap}
+              {getChunkModeLabel(ragConfig.chunkMode)} · {ragConfig.chunkSize}{" "}
+              {getChunkUnitLabel(ragConfig.chunkMode)}, overlap{" "}
+              {ragConfig.chunkOverlap} {getChunkUnitLabel(ragConfig.chunkMode)}
             </p>
             <p className="muted-text meta-line">
               <FaClock />
-              <span>Stride : {ragConfig.chunkStride}</span>
+              <span>
+                Stride : {ragConfig.chunkStride}{" "}
+                {getChunkUnitLabel(ragConfig.chunkMode)}
+              </span>
             </p>
           </Card>
         </div>
@@ -415,7 +433,22 @@ export function RagConfigurationPage() {
               />
             </Field>
 
-            <Field label="Taille de chunk (caractères)">
+            <Field label="Mode de chunking">
+              <SelectInput
+                value={chunkMode}
+                onChange={(event) =>
+                  setChunkMode(event.target.value as ChunkMode)
+                }
+              >
+                {CHUNK_MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+
+            <Field label={`Taille de chunk (${chunkUnitLabel})`}>
               <TextInput
                 min={1}
                 step={1}
@@ -425,7 +458,7 @@ export function RagConfigurationPage() {
               />
             </Field>
 
-            <Field label="Overlap (caractères)">
+            <Field label={`Overlap (${chunkUnitLabel})`}>
               <TextInput
                 min={0}
                 step={1}
@@ -442,9 +475,19 @@ export function RagConfigurationPage() {
             </p>
             <p className="m-0 text-sm text-ink-700">
               {chunkStrideValue > 0
-                ? `${chunkStrideValue} caractères (${chunkSizeValue} - ${chunkOverlapValue})`
+                ? `${chunkStrideValue} ${chunkUnitLabel} (${chunkSizeValue} - ${chunkOverlapValue})`
                 : "Le stride doit rester strictement positif."}
             </p>
+            {chunkMode === "tokens" ? (
+              <p className="m-0 text-sm text-ink-700">
+                Le mode tokens utilise tiktoken pour compter les segments.
+              </p>
+            ) : null}
+            <ChunkingSchema
+              chunkOverlap={chunkOverlapValue}
+              chunkSize={chunkSizeValue}
+              unitLabel={chunkUnitLabel}
+            />
           </Card>
 
           <Divider className="my-5" />
