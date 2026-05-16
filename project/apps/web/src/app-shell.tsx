@@ -1,7 +1,8 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   FaArrowRightFromBracket,
   FaArrowRightToBracket,
+  FaBars,
   FaCircleCheck,
   FaEye,
   FaEyeSlash,
@@ -10,7 +11,8 @@ import {
   FaLayerGroup,
   FaShieldHalved,
   FaTriangleExclamation,
-  FaUser
+  FaUser,
+  FaXmark
 } from "react-icons/fa6";
 import {
   Navigate,
@@ -18,6 +20,7 @@ import {
   Outlet,
   Route,
   Routes,
+  useLocation,
   useNavigate
 } from "react-router-dom";
 import { apiRequest } from "./app-shared";
@@ -179,69 +182,146 @@ function DashboardLayout({
   resetAuth,
   logout
 }: DashboardContextValue) {
+  const location = useLocation();
   const navigationItems = getNavigationItems(user.isAdmin);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
 
   return (
-    <div className="grid min-h-screen grid-cols-[320px_minmax(0,1fr)] max-[1100px]:grid-cols-1">
-      <aside className="flex flex-col gap-6 border-r border-stroke-softer bg-[linear-gradient(180deg,rgba(255,249,239,0.92),rgba(243,247,251,0.92))] p-7 max-[1100px]:border-r-0 max-[1100px]:border-b max-[1100px]:border-stroke-softer max-[640px]:p-4.5">
-        <div>
-          <Eyebrow className="sidebar-kicker">RAG Demo</Eyebrow>
-          <h1 className="m-0 text-[2.2rem] leading-[0.95] max-[640px]:max-w-none">
-            Console d’accès
-          </h1>
-          <p className="text-ink-700">
-            Les groupes contrôlent à la fois l’indexation, la liste des
-            documents et les passages autorisés dans le prompt.
-          </p>
+    <div className="relative flex min-h-screen bg-transparent">
+      <div
+        aria-hidden={!isSidebarOpen}
+        className={[
+          "fixed inset-0 z-30 bg-ink-950/28 backdrop-blur-[2px] transition-opacity duration-200 ease-out lg:hidden",
+          isSidebarOpen
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+        ].join(" ")}
+        onClick={() => setIsSidebarOpen(false)}
+      />
+
+      <aside
+        className={[
+          "fixed inset-y-0 left-0 z-40 flex h-screen flex-col border-r border-stroke-softer bg-[linear-gradient(180deg,rgba(255,249,239,0.96),rgba(243,247,251,0.96))] shadow-[0_22px_60px_rgba(20,48,74,0.14)] backdrop-blur-xl transition-[width,transform] duration-250 ease-out lg:sticky lg:top-0 lg:z-10 lg:translate-x-0 lg:shadow-none",
+          "w-80",
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        ].join(" ")}
+      >
+        <div className="flex items-center justify-between px-4 pb-3 pt-4 lg:px-5">
+          <div className="min-w-0 max-w-full opacity-100 transition-all duration-200">
+            <Eyebrow className="sidebar-kicker whitespace-nowrap">
+              RAG Demo
+            </Eyebrow>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              aria-label="Fermer le menu"
+              className="h-11 w-11 shrink-0 rounded-full p-0 lg:hidden"
+              onClick={() => setIsSidebarOpen(false)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <FaXmark />
+            </Button>
+          </div>
         </div>
 
-        <nav className="grid gap-2.5">
-          {navigationItems.map((item) => (
-            <NavLink
-              className={({ isActive }) =>
-                [
-                  "flex items-center gap-3 rounded-control px-4 py-3.5 font-bold transition duration-150 ease-out",
-                  isActive
-                    ? "bg-linear-to-br from-brand-500 to-brand-600 text-white shadow-[0_14px_24px_rgba(216,95,61,0.18)]"
-                    : "bg-ink-950/5 text-ink-900"
-                ].join(" ")
-              }
-              end
-              key={item.to}
-              to={item.to}
-            >
-              <item.icon />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
-
-        <Panel className="p-4.5">
-          <p className="answer-label">Session</p>
-          <p className="meta-line">
-            <FaUser />
-            <span>{user.displayName || user.email}</span>
-          </p>
-          <p className="muted-text meta-line">
-            <FaLayerGroup />
-            <span>{user.groups.join(", ")}</span>
-          </p>
-          <div className="status-row compact-row">
-            <StatusChip tone={ragConfig.configured ? "ready" : "default"}>
-              {ragConfig.configured ? (
-                <FaCircleCheck />
-              ) : (
-                <FaTriangleExclamation />
-              )}
-              {ragConfig.configured ? "RAG configuré" : "RAG non configuré"}
-            </StatusChip>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4 lg:px-4">
+          <div className="rounded-panel border border-stroke-soft bg-white/48 px-4 py-4 transition-all duration-200">
+            <div className="transition-all duration-200">
+              <h1 className="m-0 text-[2.05rem] leading-[0.95]">
+                Console d’accès
+              </h1>
+              <p className="mt-2 text-sm text-ink-700">
+                Les groupes contrôlent à la fois l’indexation, la liste des
+                documents et les passages autorisés dans le prompt.
+              </p>
+            </div>
           </div>
-        </Panel>
+
+          <nav className="grid gap-2">
+            {navigationItems.map((item) => (
+              <NavLink
+                aria-label={item.label}
+                className={({ isActive }) =>
+                  [
+                    "group flex items-center rounded-control font-bold transition duration-150 ease-out",
+                    "gap-3 px-4 py-3.5",
+                    isActive
+                      ? "bg-linear-to-br from-brand-500 to-brand-600 text-white shadow-[0_14px_24px_rgba(216,95,61,0.18)]"
+                      : "bg-ink-950/5 text-ink-900 hover:bg-ink-950/8"
+                  ].join(" ")
+                }
+                end
+                key={item.to}
+                to={item.to}
+              >
+                <span className="flex h-6 w-6 items-center justify-center text-[1rem]">
+                  <item.icon />
+                </span>
+                <span className="truncate">{item.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+
+          <Panel className="mt-auto p-4.5 transition-all duration-200">
+            <div className="space-y-2">
+              <p className="answer-label">Session</p>
+              <p className="meta-line">
+                <FaUser />
+                <span className="truncate">
+                  {user.displayName || user.email}
+                </span>
+              </p>
+              <p className="muted-text meta-line">
+                <FaLayerGroup />
+                <span className="truncate">{user.groups.join(", ")}</span>
+              </p>
+              <div className="status-row compact-row">
+                <StatusChip
+                  tone={ragConfig.configured ? "ready" : "default"}
+                  title={
+                    ragConfig.configured ? "RAG configuré" : "RAG non configuré"
+                  }
+                >
+                  {ragConfig.configured ? (
+                    <FaCircleCheck />
+                  ) : (
+                    <FaTriangleExclamation />
+                  )}
+                  <span>
+                    {ragConfig.configured
+                      ? "RAG configuré"
+                      : "RAG non configuré"}
+                  </span>
+                </StatusChip>
+              </div>
+            </div>
+          </Panel>
+        </div>
       </aside>
 
-      <main className="p-6 max-[640px]:p-4.5">
+      <main className="min-w-0 flex-1 p-6 lg:p-6 max-[640px]:p-4.5">
         <header className="mb-5 flex items-center justify-between gap-4 max-[920px]:flex-col max-[920px]:items-start">
           <div>
+            <div className="mb-3 flex items-center gap-3 lg:hidden">
+              <Button
+                aria-label="Ouvrir le menu"
+                className="h-11 w-11 rounded-full p-0"
+                onClick={() => setIsSidebarOpen(true)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <FaBars />
+              </Button>
+              <Eyebrow>Navigation</Eyebrow>
+            </div>
             <Eyebrow>Mode connecté</Eyebrow>
             <h2 className="heading-with-icon">
               <FaShieldHalved />

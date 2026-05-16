@@ -1,0 +1,21 @@
+{
+  "name": "rag-demo-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Workspace racine pour piloter la demo RAG, le corpus de demonstration et l'import des documents.",
+  "packageManager": "bun@1.3.14",
+  "scripts": {
+    "install:project": "bun install --cwd project",
+    "dev:api": "bun run --cwd project dev:api",
+    "dev:web": "bun run --cwd project dev:web",
+    "build": "bun run --cwd project build",
+    "build:api": "bun run --cwd project build:api",
+    "build:web": "bun run --cwd project build:web",
+    "typecheck": "bun run --cwd project typecheck",
+    "typecheck:api": "bun run --cwd project typecheck:api",
+    "typecheck:web": "bun run --cwd project typecheck:web",
+    "content:generate": "node ./tools/generate-demo-content.mjs --outDir ./content --targetBytes 1048576",
+    "content:import:dry-run": "node ./tools/bulk-import-content.mjs --api http://localhost:3000 --content ./content --dry-run",
+    "content:import": "node ./tools/bulk-import-content.mjs --api http://localhost:3000 --content ./content"
+  }
+}
