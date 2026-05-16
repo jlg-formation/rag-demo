@@ -1,7 +1,33 @@
+@import "tailwindcss";
+
 :root {
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
-  color: #14304a;
-  background:
+  --ui-font-sans: "Avenir Next", "Segoe UI", sans-serif;
+  --ui-color-ink-950: #14304a;
+  --ui-color-ink-900: #264864;
+  --ui-color-800: #35556f;
+  --ui-color-700: #5c7183;
+  --ui-color-brand-500: #ef8d32;
+  --ui-color-brand-600: #da5f3f;
+  --ui-color-brand-700: #b46719;
+  --ui-color-accent-500: #53b5a4;
+  --ui-color-surface-glass: rgba(255, 255, 255, 0.84);
+  --ui-color-surface-elevated: rgba(255, 255, 255, 0.72);
+  --ui-color-surface-warm: rgba(255, 249, 239, 0.78);
+  --ui-color-stroke-soft: rgba(20, 48, 74, 0.12);
+  --ui-color-stroke-softer: rgba(20, 48, 74, 0.08);
+  --ui-color-success-100: rgba(45, 148, 112, 0.12);
+  --ui-color-success-700: #266c55;
+  --ui-color-warning-100: rgba(180, 103, 25, 0.14);
+  --ui-color-warning-700: #9a5815;
+  --ui-color-danger-100: rgba(202, 45, 45, 0.1);
+  --ui-color-danger-700: #8f2323;
+  --ui-radius-panel: 24px;
+  --ui-radius-card: 16px;
+  --ui-radius-control: 18px;
+  --ui-radius-action: 18px;
+  --ui-shadow-panel: 0 28px 60px rgba(20, 48, 74, 0.08);
+  --ui-shadow-soft: 0 14px 24px rgba(20, 48, 74, 0.08);
+  --ui-background-app:
     radial-gradient(
       circle at top left,
       rgba(255, 205, 136, 0.35),
@@ -13,6 +39,41 @@
       transparent 22%
     ),
     linear-gradient(180deg, #fff8ed 0%, #f3f7fb 100%);
+}
+
+@theme inline {
+  --font-sans: var(--ui-font-sans);
+  --color-ink-950: var(--ui-color-ink-950);
+  --color-ink-900: var(--ui-color-ink-900);
+  --color-ink-800: var(--ui-color-800);
+  --color-ink-700: var(--ui-color-700);
+  --color-brand-500: var(--ui-color-brand-500);
+  --color-brand-600: var(--ui-color-brand-600);
+  --color-brand-700: var(--ui-color-brand-700);
+  --color-accent-500: var(--ui-color-accent-500);
+  --color-surface-glass: var(--ui-color-surface-glass);
+  --color-surface-elevated: var(--ui-color-surface-elevated);
+  --color-surface-warm: var(--ui-color-surface-warm);
+  --color-stroke-soft: var(--ui-color-stroke-soft);
+  --color-stroke-softer: var(--ui-color-stroke-softer);
+  --color-success-100: var(--ui-color-success-100);
+  --color-success-700: var(--ui-color-success-700);
+  --color-warning-100: var(--ui-color-warning-100);
+  --color-warning-700: var(--ui-color-warning-700);
+  --color-danger-100: var(--ui-color-danger-100);
+  --color-danger-700: var(--ui-color-danger-700);
+  --radius-panel: var(--ui-radius-panel);
+  --radius-card: var(--ui-radius-card);
+  --radius-control: var(--ui-radius-control);
+  --radius-action: var(--ui-radius-action);
+  --shadow-panel: var(--ui-shadow-panel);
+  --shadow-soft: var(--ui-shadow-soft);
+}
+
+:root {
+  font-family: var(--ui-font-sans);
+  color: var(--ui-color-ink-950);
+  background: var(--ui-background-app);
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
