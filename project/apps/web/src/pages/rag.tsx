@@ -78,7 +78,7 @@ function SecretField({
 
   return (
     <Field label={label}>
-      <Card className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3">
         {replaceMode ? (
           <div className="secret-field">
             <div className="secret-input-wrap secret-input-wrap--editing">
@@ -139,7 +139,7 @@ function SecretField({
             </div>
           </div>
         )}
-      </Card>
+      </div>
     </Field>
   );
 }
@@ -243,6 +243,7 @@ export function RagConfigurationPage() {
     <div className="page-grid">
       <Panel className="page-panel">
         <PanelHeading
+          className="mb-5"
           description={
             <>Paramètres utilisés par l’indexation et les requêtes RAG.</>
           }
@@ -274,6 +275,8 @@ export function RagConfigurationPage() {
             </p>
           </Card>
         </div>
+
+        <Divider className="my-5" />
 
         <form className="subpanel" onSubmit={handleConfigure}>
           <div className="flex flex-col gap-1">
@@ -373,6 +376,8 @@ export function RagConfigurationPage() {
               />
             </Field>
           </div>
+
+          <Divider className="my-5" />
 
           <Button disabled={isConfiguring} fullWidth type="submit">
             <FaGear />
