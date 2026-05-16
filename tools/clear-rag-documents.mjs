@@ -1,11 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-const API_PACKAGE_JSON = new URL(
-  "../project/apps/api/package.json",
-  import.meta.url
-);
 const DOCUMENTS_FILE = fileURLToPath(
   new URL("../project/apps/api/data/documents.json", import.meta.url)
 );
@@ -15,13 +10,25 @@ const SETTINGS_FILE = fileURLToPath(
 const DEFAULT_NAMESPACE = "rag-demo";
 const DELETE_BATCH_SIZE = 100;
 
-const require = createRequire(API_PACKAGE_JSON);
+/**
+ * @typedef {{
+ *   pineconeApiKey?: string;
+ *   pineconeIndex?: string;
+ *   pineconeHost?: string;
+ *   namespace?: string;
+ * }} RagSettings
+ */
 
-const getPineconeConstructor = () => {
-  const { Pinecone } = require("@pinecone-database/pinecone");
-  return Pinecone;
-};
+/**
+ * @typedef {{
+ *   id?: string;
+ *   vectorIds?: string[];
+ * }} StoredDocument
+ */
 
+/**
+ * @param {string[]} argv
+ */
 const parseArgs = (argv) => {
   const args = {
     dryRun: false,
@@ -47,10 +54,16 @@ const parseArgs = (argv) => {
   return args;
 };
 
+/**
+ * @template T
+ * @param {string} filePath
+ * @param {T} fallbackValue
+ * @returns {Promise<T>}
+ */
 const readJsonFile = async (filePath, fallbackValue) => {
   try {
     const contents = await readFile(filePath, "utf8");
-    return JSON.parse(contents);
+    return /** @type {T} */ (JSON.parse(contents));
   } catch (error) {
     if (error && typeof error === "object" && "code" in error) {
       if (error.code === "ENOENT") {
@@ -62,11 +75,22 @@ const readJsonFile = async (filePath, fallbackValue) => {
   }
 };
 
+/**
+ * @param {string} filePath
+ * @param {unknown} value
+ */
 const writeJsonFile = async (filePath, value) => {
   await writeFile(filePath, JSON.stringify(value, null, 2) + "\n", "utf8");
 };
 
+/**
+ * @template T
+ * @param {T[]} items
+ * @param {number} size
+ * @returns {T[][]}
+ */
 const chunkArray = (items, size) => {
+  /** @type {T[][]} */
   const chunks = [];
 
   for (let index = 0; index < items.length; index += size) {
@@ -76,15 +100,39 @@ const chunkArray = (items, size) => {
   return chunks;
 };
 
+/**
+ * @param {RagSettings | null} settings
+ */
 const resolvePineconeHost = async (settings) => {
-  const Pinecone = getPineconeConstructor();
-
-  if (settings.pineconeHost) {
+  if (settings?.pineconeHost) {
     return settings.pineconeHost;
   }
 
-  const client = new Pinecone({ apiKey: settings.pineconeApiKey });
-  const description = await client.describeIndex(settings.pineconeIndex);
+  if (!settings?.pineconeApiKey || !settings?.pineconeIndex) {
+    throw new Error(
+      "La configuration Pinecone est incomplete. Impossible de resoudre le host."
+    );
+  }
+
+  const response = await fetch(
+    `https://api.pinecone.io/indexes/${encodeURIComponent(settings.pineconeIndex)}`,
+    {
+      headers: {
+        Accept: "application/json",
+        "Api-Key": settings.pineconeApiKey,
+        "X-Pinecone-API-Version": "2025-01"
+      }
+    }
+  );
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(
+      `Impossible de resoudre le host Pinecone pour l'index ${settings.pineconeIndex}. ${details}`.trim()
+    );
+  }
+
+  const description = /** @type {{ host?: string }} */ (await response.json());
 
   if (!description.host) {
     throw new Error(
@@ -95,9 +143,10 @@ const resolvePineconeHost = async (settings) => {
   return description.host;
 };
 
-const createNamespaceHandle = async (settings) => {
-  const Pinecone = getPineconeConstructor();
-
+/**
+ * @param {RagSettings | null} settings
+ */
+const createDeleteEndpoint = async (settings) => {
   if (!settings?.pineconeApiKey || !settings?.pineconeIndex) {
     throw new Error(
       "La configuration Pinecone est incomplete. Impossible de purger les vecteurs distants."
@@ -105,13 +154,20 @@ const createNamespaceHandle = async (settings) => {
   }
 
   const host = await resolvePineconeHost(settings);
-  const client = new Pinecone({ apiKey: settings.pineconeApiKey });
+  const normalizedHost = host.replace(/^https?:\/\//, "");
+  const namespace = settings.namespace || DEFAULT_NAMESPACE;
 
-  return client
-    .index(settings.pineconeIndex, host)
-    .namespace(settings.namespace || DEFAULT_NAMESPACE);
+  return {
+    namespace,
+    url: `https://${normalizedHost}/vectors/delete`,
+    apiKey: settings.pineconeApiKey
+  };
 };
 
+/**
+ * @param {StoredDocument[]} documents
+ * @returns {string[]}
+ */
 const collectVectorIds = (documents) =>
   Array.from(
     new Set(
@@ -123,17 +179,41 @@ const collectVectorIds = (documents) =>
     )
   );
 
+/**
+ * @param {RagSettings | null} settings
+ * @param {string[]} vectorIds
+ */
 const deleteRemoteVectors = async (settings, vectorIds) => {
   if (!vectorIds.length) {
     return;
   }
 
-  const namespace = await createNamespaceHandle(settings);
+  const endpoint = await createDeleteEndpoint(settings);
   const batches = chunkArray(vectorIds, DELETE_BATCH_SIZE);
 
   for (let index = 0; index < batches.length; index += 1) {
     const batch = batches[index];
-    await namespace.deleteMany(batch);
+    const response = await fetch(endpoint.url, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Api-Key": endpoint.apiKey,
+        "X-Pinecone-API-Version": "2025-01"
+      },
+      body: JSON.stringify({
+        ids: batch,
+        namespace: endpoint.namespace
+      })
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      throw new Error(
+        `Echec de suppression Pinecone pour le batch ${index + 1}: ${details}`.trim()
+      );
+    }
+
     console.log(
       `[clear-rag] Suppression Pinecone ${index + 1}/${batches.length} (${batch.length} vecteurs)`
     );
@@ -142,8 +222,16 @@ const deleteRemoteVectors = async (settings, vectorIds) => {
 
 const main = async () => {
   const args = parseArgs(process.argv);
-  const documents = await readJsonFile(DOCUMENTS_FILE, []);
-  const settings = await readJsonFile(SETTINGS_FILE, null);
+  /** @type {StoredDocument[]} */
+  const documents = await readJsonFile(
+    DOCUMENTS_FILE,
+    /** @type {StoredDocument[]} */ ([])
+  );
+  /** @type {RagSettings | null} */
+  const settings = await readJsonFile(
+    SETTINGS_FILE,
+    /** @type {RagSettings | null} */ (null)
+  );
   const vectorIds = collectVectorIds(documents);
 
   const summary = {

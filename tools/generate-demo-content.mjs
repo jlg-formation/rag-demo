@@ -3,6 +3,54 @@ import path from "node:path";
 
 const DEFAULT_TARGET_BYTES = 1024 * 1024;
 
+/** @typedef {"admin" | "patients" | "docteurs" | "dsi" | "ressources-humaines"} GroupKey */
+
+/**
+ * @typedef {{
+ *   audience: string;
+ *   roles: string[];
+ *   contexts: string[];
+ *   metrics: string[];
+ *   keywords: string[];
+ * }} GroupProfile
+ */
+
+/**
+ * @typedef {{
+ *   fileName: string;
+ *   title: string;
+ *   summary: string;
+ *   body: string;
+ * }} SourceFile
+ */
+
+/**
+ * @typedef {{
+ *   group: GroupKey;
+ *   themes: string[];
+ *   files: SourceFile[];
+ * }} ParsedSourceGroup
+ */
+
+/**
+ * @typedef {{
+ *   outDir: string;
+ *   targetBytes: number;
+ *   sources: string[];
+ * }} ParsedArgs
+ */
+
+/**
+ * @typedef {{
+ *   group: GroupKey;
+ *   fileName: string;
+ *   content: string;
+ *   profile: GroupProfile;
+ *   themes: string[];
+ * }} CorpusDocument
+ */
+
+/** @type {Record<GroupKey, GroupProfile>} */
 const groupProfiles = {
   admin: {
     audience:
@@ -180,6 +228,12 @@ const groupProfiles = {
   }
 };
 
+/** @param {string} value
+ * @returns {value is GroupKey}
+ */
+const isGroupKey = (value) => value in groupProfiles;
+
+/** @param {string} value */
 const toSlug = (value) =>
   value
     .toLowerCase()
@@ -189,9 +243,15 @@ const toSlug = (value) =>
     .replace(/^-+|-+$/g, "")
     .replace(/-{2,}/g, "-");
 
+/** @param {string} value */
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/**
+ * @param {string[]} argv
+ * @returns {ParsedArgs}
+ */
 const parseArgs = (argv) => {
+  /** @type {{ outDir: string | null; targetBytes: number; sources: string[] }} */
   const args = { outDir: null, targetBytes: DEFAULT_TARGET_BYTES, sources: [] };
 
   for (let index = 2; index < argv.length; index += 1) {
@@ -224,9 +284,17 @@ const parseArgs = (argv) => {
     throw new Error("--targetBytes must be a positive number.");
   }
 
-  return args;
+  return {
+    outDir: args.outDir,
+    targetBytes: args.targetBytes,
+    sources: args.sources
+  };
 };
 
+/**
+ * @param {string} themesBlock
+ * @returns {string[]}
+ */
 const parseThemes = (themesBlock) =>
   themesBlock
     .split(/\r?\n/)
@@ -234,6 +302,10 @@ const parseThemes = (themesBlock) =>
     .map((line) => line.replace(/,$/, ""))
     .filter(Boolean);
 
+/**
+ * @param {string} groupBlock
+ * @returns {ParsedSourceGroup}
+ */
 const parseSingleGroupBlock = (groupBlock) => {
   const groupMatch = groupBlock.match(/^GROUP:\s*(.+)$/m);
   const themesMatch = groupBlock.match(/^THEMES:\s*([\s\S]*?)^FILE:\s+/m);
@@ -243,6 +315,9 @@ const parseSingleGroupBlock = (groupBlock) => {
   }
 
   const group = groupMatch[1].trim();
+  if (!isGroupKey(group)) {
+    throw new Error(`Unsupported group: ${group}`);
+  }
   const themes = parseThemes(themesMatch[1]);
   const fileMatches = [...groupBlock.matchAll(/^FILE:\s*(.+)$/gm)];
   const files = fileMatches.map((match, index) => {
@@ -269,6 +344,10 @@ const parseSingleGroupBlock = (groupBlock) => {
   return { group, themes, files };
 };
 
+/**
+ * @param {string} sourceText
+ * @returns {ParsedSourceGroup[]}
+ */
 const parseSourceText = (sourceText) => {
   const normalized = sourceText.replace(/\r\n/g, "\n");
   const groupMatches = [...normalized.matchAll(/^GROUP:\s*.+$/gm)];
@@ -284,8 +363,16 @@ const parseSourceText = (sourceText) => {
   });
 };
 
+/** @param {string[]} lines */
 const paragraphify = (lines) => lines.join("\n\n");
 
+/**
+ * @param {GroupKey} group
+ * @param {GroupProfile} profile
+ * @param {string} title
+ * @param {string[]} themes
+ * @returns {string[]}
+ */
 const buildOperationalParagraphs = (group, profile, title, themes) => {
   return Array.from({ length: 12 }, (_, index) => {
     const theme =
@@ -300,6 +387,12 @@ const buildOperationalParagraphs = (group, profile, title, themes) => {
   });
 };
 
+/**
+ * @param {GroupKey} group
+ * @param {GroupProfile} profile
+ * @param {string[]} themes
+ * @returns {string[]}
+ */
 const buildScenarioParagraphs = (group, profile, themes) => {
   return Array.from({ length: 10 }, (_, index) => {
     const theme =
@@ -313,7 +406,14 @@ const buildScenarioParagraphs = (group, profile, themes) => {
   });
 };
 
+/**
+ * @param {GroupKey} group
+ * @param {GroupProfile} profile
+ * @param {string[]} themes
+ * @returns {string}
+ */
 const buildFaqSection = (group, profile, themes) => {
+  /** @type {string[]} */
   const lines = [];
 
   for (let index = 0; index < 14; index += 1) {
@@ -334,6 +434,11 @@ const buildFaqSection = (group, profile, themes) => {
   return lines.join("\n\n");
 };
 
+/**
+ * @param {GroupProfile} profile
+ * @param {string[]} themes
+ * @returns {string}
+ */
 const buildChecklistSection = (profile, themes) => {
   const items = Array.from({ length: 18 }, (_, index) => {
     const theme =
@@ -346,6 +451,11 @@ const buildChecklistSection = (profile, themes) => {
   return items.join("\n");
 };
 
+/**
+ * @param {GroupProfile} profile
+ * @param {string[]} themes
+ * @returns {string}
+ */
 const buildGlossarySection = (profile, themes) => {
   return Array.from({ length: 16 }, (_, index) => {
     const theme =
@@ -356,6 +466,11 @@ const buildGlossarySection = (profile, themes) => {
   }).join("\n");
 };
 
+/**
+ * @param {GroupProfile} profile
+ * @param {string[]} themes
+ * @returns {string}
+ */
 const buildTimelineSection = (profile, themes) => {
   return Array.from({ length: 12 }, (_, index) => {
     const month = String((index % 12) + 1).padStart(2, "0");
@@ -368,6 +483,7 @@ const buildTimelineSection = (profile, themes) => {
   }).join("\n");
 };
 
+/** @param {string} input */
 const stripMarkdown = (input) =>
   input
     .replace(/^#+\s+/gm, "")
@@ -375,6 +491,10 @@ const stripMarkdown = (input) =>
     .replace(/\*\*/g, "")
     .trim();
 
+/**
+ * @param {{ group: GroupKey; themes: string[]; file: SourceFile; profile: GroupProfile; sequence: number }} input
+ * @returns {string}
+ */
 const buildExpandedDocument = ({ group, themes, file, profile, sequence }) => {
   const baseBody = stripMarkdown(file.body);
   const operationalParagraphs = buildOperationalParagraphs(
@@ -429,6 +549,10 @@ ${timeline}
 `;
 };
 
+/**
+ * @param {{ group: GroupKey; themes: string[]; profile: GroupProfile; variant: number }} input
+ * @returns {string}
+ */
 const buildSynthesisDocument = ({ group, themes, profile, variant }) => {
   const title =
     variant === 1
@@ -437,6 +561,7 @@ const buildSynthesisDocument = ({ group, themes, profile, variant }) => {
 
   const intro = `Ce document transverse complete les notes principales du groupe ${group}. Il assemble un vocabulaire metier stable, des cas pratiques, des rappels de gouvernance et des formulations alternatives afin d'ameliorer le rappel lors des recherches semantiques. Les themes structurants sont: ${themes.join(", ")}.`;
 
+  /** @type {string[]} */
   const blocks = [];
   for (let index = 0; index < 20; index += 1) {
     const theme =
@@ -485,7 +610,12 @@ ${buildTimelineSection(profile, themes)}
 `;
 };
 
+/**
+ * @param {{ group: GroupKey; themes: string[]; profile: GroupProfile; pass: number }} input
+ * @returns {string}
+ */
 const buildAugmentation = ({ group, themes, profile, pass }) => {
+  /** @type {string[]} */
   const notes = [];
   for (let index = 0; index < 8; index += 1) {
     const theme =
@@ -506,6 +636,10 @@ ${paragraphify(notes)}
 `;
 };
 
+/**
+ * @param {string} outDir
+ * @param {CorpusDocument[]} corpus
+ */
 const writeCorpus = async (outDir, corpus) => {
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -517,6 +651,11 @@ const writeCorpus = async (outDir, corpus) => {
   }
 };
 
+/**
+ * @param {CorpusDocument[]} corpus
+ * @param {number} totalBytes
+ * @returns {string}
+ */
 const buildReadme = (corpus, totalBytes) => {
   const groups = [...new Set(corpus.map((doc) => doc.group))];
   const lines = [
@@ -546,6 +685,7 @@ const buildReadme = (corpus, totalBytes) => {
 
 const main = async () => {
   const { outDir, targetBytes, sources } = parseArgs(process.argv);
+  /** @type {ParsedSourceGroup[]} */
   const parsedSources = [];
 
   for (const sourcePath of sources) {
@@ -553,6 +693,7 @@ const main = async () => {
     parsedSources.push(...parseSourceText(sourceText));
   }
 
+  /** @type {CorpusDocument[]} */
   const corpus = [];
 
   for (const parsed of parsedSources) {
