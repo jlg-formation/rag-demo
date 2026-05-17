@@ -7,7 +7,7 @@ import {
 import {
   Banner,
   Button,
-  Card,
+  Divider,
   Field,
   Panel,
   PanelHeading,
@@ -47,7 +47,9 @@ export function RagQuestionPage() {
           title="Question RAG"
         />
 
-        <Card className="question-composer-card">
+        <Divider className="my-5" />
+
+        <div className="question-composer-card">
           <div className="question-composer-card__header">
             <div className="flex flex-col gap-2">
               <p className="answer-label info-line">
@@ -121,7 +123,7 @@ export function RagQuestionPage() {
               await flow.runQuery(flow.selectedBenchmarkCase.question);
             }}
           />
-        </Card>
+        </div>
 
         {flow.shouldShowAnswerCard ? (
           <RagAnswerCard

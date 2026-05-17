@@ -91,8 +91,8 @@ function LoginPage({
   };
 
   return (
-    <div className="mx-auto grid min-h-screen w-[min(1200px,calc(100%-32px))] grid-cols-[minmax(0,1.1fr)_minmax(340px,420px)] gap-6 px-6 py-6 max-[920px]:grid-cols-1">
-      <Panel as="section" className="p-8 max-[640px]:p-4.5">
+    <div className="mx-auto grid min-h-screen w-[min(1200px,calc(100%-20px))] grid-cols-[minmax(0,1.1fr)_minmax(340px,420px)] gap-6 px-4 py-5 max-[920px]:grid-cols-1 max-[640px]:gap-4 max-[640px]:px-2.5 max-[640px]:py-3.5">
+      <Panel as="section" className="p-8 max-[920px]:order-2 max-[640px]:p-5">
         <Eyebrow>Multi-tenant RAG</Eyebrow>
         <h1 className="m-0 max-w-[11ch] text-[clamp(2.3rem,5vw,4.8rem)] leading-[0.92] max-[640px]:max-w-none">
           Contrôler qui peut indexer, lire et interroger chaque document.
@@ -123,7 +123,7 @@ function LoginPage({
 
       <Panel
         as="form"
-        className="p-8 max-[640px]:p-4.5"
+        className="p-8 max-[920px]:order-1 max-[640px]:p-5"
         onSubmit={handleSubmit}
       >
         <PanelHeading
@@ -165,7 +165,12 @@ function LoginPage({
           </div>
         </Field>
 
-        <Button disabled={isSubmitting} fullWidth type="submit">
+        <Button
+          className="mt-14"
+          disabled={isSubmitting}
+          fullWidth
+          type="submit"
+        >
           <FaArrowRightToBracket />
           <span>{isSubmitting ? "Connexion…" : "Se connecter"}</span>
         </Button>

@@ -27,8 +27,8 @@ const buttonVariantClasses: Record<ButtonVariant, string> = {
 };
 
 const buttonSizeClasses: Record<ButtonSize, string> = {
-  sm: "min-h-11 px-4 py-3 text-sm",
-  md: "min-h-12 px-5 py-3.5 text-sm"
+  sm: "min-h-11 px-4 py-3 text-sm max-[640px]:min-h-10 max-[640px]:px-3.5 max-[640px]:py-2.5",
+  md: "min-h-12 px-5 py-3.5 text-sm max-[640px]:min-h-11 max-[640px]:px-4 max-[640px]:py-3"
 };
 
 export function Button({
@@ -71,7 +71,7 @@ export function Panel<T extends ElementType = "section">({
   return (
     <Component
       className={cx(
-        "rounded-panel border border-stroke-soft bg-surface-glass p-6 shadow-panel backdrop-blur-xl",
+        "rounded-panel border border-stroke-soft bg-surface-glass p-6 shadow-panel backdrop-blur-xl max-[640px]:p-4",
         className
       )}
       {...props}
@@ -92,7 +92,7 @@ export function Card<T extends ElementType = "article">({
   return (
     <Component
       className={cx(
-        "rounded-card border border-stroke-softer bg-surface-glass p-[18px] shadow-soft backdrop-blur-xl",
+        "rounded-card border border-stroke-softer bg-surface-glass p-4.5 shadow-soft backdrop-blur-xl max-[640px]:p-4",
         className
       )}
       {...props}
@@ -158,7 +158,7 @@ type SelectProps = ComponentPropsWithoutRef<"select">;
 type TextAreaProps = TextareaHTMLAttributes<HTMLTextAreaElement>;
 
 const controlClassName =
-  "w-full rounded-control border border-stroke-soft bg-surface-warm px-4 py-3.5 text-ink-950 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10";
+  "w-full rounded-control border border-stroke-soft bg-surface-warm px-4 py-3.5 text-ink-950 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 max-[640px]:px-3.5 max-[640px]:py-3";
 
 export function TextInput({ className, ...props }: InputProps) {
   return <input className={cx(controlClassName, className)} {...props} />;
