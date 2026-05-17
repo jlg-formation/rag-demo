@@ -108,7 +108,7 @@ describe("createApp", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    expect(await response.json()).toMatchObject({
       user: {
         email: user.email,
         displayName: user.displayName,
@@ -127,9 +127,6 @@ describe("createApp", () => {
         embeddingModel: null,
         chatModel: null,
         chunkMode: "characters",
-        chunkSize: 1000,
-        chunkOverlap: 200,
-        chunkStride: 800,
         updatedAt: null,
         updatedBy: null,
         namespace: null

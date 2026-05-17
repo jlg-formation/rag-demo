@@ -182,6 +182,27 @@ describe("createApp RAG integration", () => {
     mockedGenerateAnswer.mockClear();
     mockedDeleteDocumentVectors.mockClear();
     mockedIndexDocumentInPinecone.mockClear();
+    mockedResolvePineconeHost.mockImplementation(
+      async () => "mocked-pinecone-host"
+    );
+    mockedQueryAccessibleChunks.mockImplementation(async () => [
+      {
+        id: 1,
+        content: "Passage de test",
+        score: 0.91,
+        group: "patients",
+        documentId: "doc-1",
+        title: "Guide patient"
+      }
+    ]);
+    mockedGenerateAnswer.mockImplementation(
+      async () => "## Reponse courte\n\nReponse mockee."
+    );
+    mockedDeleteDocumentVectors.mockImplementation(async () => {});
+    mockedIndexDocumentInPinecone.mockImplementation(async () => ({
+      chunkCount: 2,
+      vectorIds: ["vec-1", "vec-2"]
+    }));
   });
 
   it("configures RAG without calling real Pinecone", async () => {
@@ -245,6 +266,51 @@ describe("createApp RAG integration", () => {
     });
   });
 
+  it("returns 500 when mocked Pinecone host resolution fails", async () => {
+    mockedResolvePineconeHost.mockImplementationOnce(async () => {
+      throw new Error("Pinecone mock failure");
+    });
+
+    const app = createApp({
+      store: createStoreStub(),
+      getAuthenticatedUser: createAuthenticatedUser(createAdminUser())
+    });
+
+    const response = await app.handle(
+      createJsonRequest("http://localhost/api/rag/configure", "POST", {
+        openAiApiKey: "new-openai-key",
+        pineconeApiKey: "new-pinecone-key",
+        pineconeIndex: "new-index"
+      })
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error:
+        "Pinecone mock failure Fournissez explicitement le host Pinecone si l'index ne peut pas etre resolu automatiquement."
+    });
+  });
+
+  it("returns 500 when mocked retrieval fails during a RAG query", async () => {
+    mockedQueryAccessibleChunks.mockImplementationOnce(async () => {
+      throw new Error("Query mock failure");
+    });
+
+    const app = createApp({
+      store: createStoreStub(),
+      getAuthenticatedUser: createAuthenticatedUser(createPatientUser())
+    });
+
+    const response = await app.handle(
+      createJsonRequest("http://localhost/api/rag/query", "POST", {
+        question: "Quel est le protocole ?"
+      })
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Query mock failure" });
+  });
+
   it("indexes a document with mocked vectorization and storage", async () => {
     const createDocument = mock(async (document: DocumentRecord) => document);
     const store = createStoreStub({ createDocument });
@@ -271,6 +337,69 @@ describe("createApp RAG integration", () => {
         chunkCount: 2,
         createdBy: "patient@example.com"
       }
+    });
+  });
+
+  it("uploads text files through FormData with mocked indexing", async () => {
+    const createDocument = mock(async (document: DocumentRecord) => document);
+    const store = createStoreStub({ createDocument });
+    const app = createApp({
+      store,
+      getAuthenticatedUser: createAuthenticatedUser(createPatientUser())
+    });
+    const formData = new FormData();
+    formData.append("group", "patients");
+    formData.append(
+      "files",
+      new File(["Contenu upload 1"], "guide-1.md", { type: "text/markdown" })
+    );
+    formData.append(
+      "files",
+      new File(["Contenu upload 2"], "guide-2.txt", { type: "text/plain" })
+    );
+
+    const response = await app.handle(
+      new Request("http://localhost/api/documents/upload", {
+        method: "POST",
+        body: formData
+      })
+    );
+
+    expect(response.status).toBe(201);
+    expect(mockedIndexDocumentInPinecone).toHaveBeenCalledTimes(2);
+    expect(createDocument).toHaveBeenCalledTimes(2);
+    expect(await response.json()).toMatchObject({
+      documents: [
+        { title: "guide-1", group: "patients", chunkCount: 2 },
+        { title: "guide-2", group: "patients", chunkCount: 2 }
+      ]
+    });
+  });
+
+  it("rejects upload when a file extension is not allowed", async () => {
+    const app = createApp({
+      store: createStoreStub(),
+      getAuthenticatedUser: createAuthenticatedUser(createPatientUser())
+    });
+    const formData = new FormData();
+    formData.append("group", "patients");
+    formData.append(
+      "files",
+      new File(["Contenu binaire"], "guide.pdf", {
+        type: "application/pdf"
+      })
+    );
+
+    const response = await app.handle(
+      new Request("http://localhost/api/documents/upload", {
+        method: "POST",
+        body: formData
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Seuls les fichiers texte, markdown et md sont acceptes."
     });
   });
 
