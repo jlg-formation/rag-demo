@@ -560,7 +560,6 @@ export function RagQuestionPage() {
   const [question, setQuestion] = useState("");
 
   const isCaseAccessible = (questionCase: QuestionCase) =>
-    user.isAdmin ||
     questionCase.allowedGroups.some((group) => user.groups.includes(group));
 
   const starterQuestions = useMemo(
