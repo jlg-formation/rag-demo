@@ -1,8 +1,8 @@
 services:
   app:
     build:
-      context: .
-      dockerfile: Dockerfile.api
+      context: ..
+      dockerfile: project/Dockerfile.api
     container_name: rag-demo-app
     restart: unless-stopped
     environment:
@@ -14,7 +14,7 @@ services:
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD}
       BOOTSTRAP_ADMIN_DISPLAY_NAME: ${BOOTSTRAP_ADMIN_DISPLAY_NAME}
     volumes:
-      - ./apps/api/data:/app/apps/api/data
+      - ./apps/api/data:/app/project/apps/api/data
     ports:
       - "127.0.0.1:3000:3000"
     healthcheck:
