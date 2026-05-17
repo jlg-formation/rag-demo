@@ -35,6 +35,7 @@ Pourquoi cette architecture est la bonne ici :
 
 Les fichiers suivants servent de base de production :
 
+- `.dockerignore`
 - `project/Dockerfile.api`
 - `project/docker-compose.prod.yml`
 - `project/deploy/.env.production.example`
@@ -80,6 +81,21 @@ Important :
 ### 4. Cookie de session sécurisé
 
 Le projet a été ajusté pour activer le flag `Secure` des cookies de session en production.
+
+### 5. Contexte de build Docker
+
+Le déploiement Docker utilise la racine du dépôt comme contexte de build, même si la commande `docker compose` est lancée depuis `project/`.
+
+Pourquoi :
+
+- le frontend compile des ressources situées hors de `project/`
+- notamment les fichiers JSON présents dans `benchmarks/`
+- si le build Docker part seulement de `project/`, ces fichiers sont absents et la compilation échoue
+
+En pratique :
+
+- la commande de déploiement se lance bien depuis `$HOME/rag-demo/project`
+- mais `docker-compose.prod.yml` construit l'image depuis `..`
 
 ## Prérequis avant intervention
 
@@ -240,6 +256,12 @@ Puis protégez ce fichier :
 chmod 600 .env.production
 ```
 
+Vérification utile :
+
+```bash
+ls -la .env.production
+```
+
 ## Étape 7 - Démarrer la stack Docker
 
 Toujours dans `$HOME/rag-demo/project` :
@@ -247,6 +269,14 @@ Toujours dans `$HOME/rag-demo/project` :
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
+
+Cette commande est correcte et validée dans votre contexte actuel.
+
+Important :
+
+- vous lancez bien la commande depuis `$HOME/rag-demo/project`
+- mais l'image Docker est construite avec la racine du dépôt comme contexte
+- c'est normal et nécessaire pour inclure `benchmarks/`
 
 Vérifiez l'état des conteneurs :
 
@@ -257,6 +287,19 @@ docker compose --env-file .env.production -f docker-compose.prod.yml ps
 Résultat attendu :
 
 - `rag-demo-app` en état `running` ou `healthy`
+
+Un build réussi ressemble à ceci :
+
+- étape `RUN cd project && bun install --frozen-lockfile` terminée
+- étape `RUN cd project && bun run build:web` terminée
+- image de l'application construite
+- conteneur `rag-demo-app` recréé puis démarré
+
+Important :
+
+- cette stack Docker Compose utilise un nom de projet dédié à la démo RAG
+- cela évite de réutiliser par erreur un projet Compose générique nommé `project`
+- cela limite le risque d'écraser ou de recréer un ancien conteneur sans le vouloir
 
 Si un conteneur échoue, lisez les journaux :
 

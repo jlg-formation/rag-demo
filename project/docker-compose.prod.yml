@@ -1,3 +1,5 @@
+name: rag-demo
+
 services:
   app:
     build:
