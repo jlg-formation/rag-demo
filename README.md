@@ -26,6 +26,10 @@ bun run install:project
 
 Cette commande installe les dependances de l'application situee dans `project/`.
 
+## Deploiement
+
+Le guide de deploiement pas a pas pour le VPS OVH est disponible dans [DEPLOY.md](./DEPLOY.md).
+
 ## Scripts racine
 
 Le `package.json` racine sert de point d'entree unique pour piloter la demo et les outils annexes.
@@ -110,6 +114,7 @@ Si l'API n'est pas demarree, ou si la configuration RAG n'est pas encore renseig
 ## Notes utiles
 
 - L'application principale conserve sa propre documentation dans `project/README.md`.
+- Le mode operatoire de deploiement VPS est documente dans `DEPLOY.md`.
 - Les donnees JSON de l'API sont stockees dans `project/apps/api/data/`.
 - Les secrets de configuration RAG ne doivent pas etre commités.
 
