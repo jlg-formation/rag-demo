@@ -3,6 +3,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 const COOKIE_NAME = "rag_demo_session";
 const SESSION_SECRET =
   process.env.SESSION_SECRET || "rag-demo-session-secret-change-me";
+const COOKIE_SECURE =
+  process.env.COOKIE_SECURE === "true" || process.env.NODE_ENV === "production";
 
 export const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -34,12 +36,13 @@ export const verifyPassword = async (password: string, passwordHash: string) =>
 export const buildSessionCookie = (sessionId: string) => {
   const signature = createSignature(sessionId);
   const maxAge = Math.floor(SESSION_TTL_MS / 1000);
+  const secureAttribute = COOKIE_SECURE ? "; Secure" : "";
 
-  return `${COOKIE_NAME}=${sessionId}.${signature}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`;
+  return `${COOKIE_NAME}=${sessionId}.${signature}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureAttribute}`;
 };
 
 export const buildExpiredSessionCookie = () =>
-  `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT${COOKIE_SECURE ? "; Secure" : ""}`;
 
 export const getSessionIdFromCookieHeader = (cookieHeader: string | null) => {
   if (!cookieHeader) {

@@ -10,6 +10,13 @@ import type {
   UserRecord
 } from "./types";
 
+const DEFAULT_ADMIN_EMAIL = normalizeEmail(
+  process.env.BOOTSTRAP_ADMIN_EMAIL || "admin"
+);
+const DEFAULT_ADMIN_PASSWORD = process.env.BOOTSTRAP_ADMIN_PASSWORD || "admin";
+const DEFAULT_ADMIN_DISPLAY_NAME =
+  process.env.BOOTSTRAP_ADMIN_DISPLAY_NAME || "Administrator";
+
 const GROUPS_FILE = fileURLToPath(
   new URL("../data/groups.json", import.meta.url)
 );
@@ -82,14 +89,14 @@ export class DataStore {
       await this.saveGroups();
     }
 
-    const adminEmail = normalizeEmail("admin");
+    const adminEmail = DEFAULT_ADMIN_EMAIL;
     const adminUser = this.users.find((user) => user.email === adminEmail);
 
     if (!adminUser) {
       this.users.push({
         email: adminEmail,
-        passwordHash: await hashPassword("admin"),
-        displayName: "Administrator",
+        passwordHash: await hashPassword(DEFAULT_ADMIN_PASSWORD),
+        displayName: DEFAULT_ADMIN_DISPLAY_NAME,
         groups: ["admin"],
         createdAt: now
       });

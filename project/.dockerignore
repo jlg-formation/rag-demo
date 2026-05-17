@@ -1,0 +1,13 @@
+.git
+.github
+node_modules
+apps/*/node_modules
+apps/*/dist
+dist
+build
+coverage
+input
+content
+benchmarks
+UX-AUDIT
+README.md
