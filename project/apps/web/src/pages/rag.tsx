@@ -12,11 +12,14 @@ import {
   FaLayerGroup,
   FaMagnifyingGlass,
   FaShieldHalved,
+  FaQuoteLeft,
   FaTriangleExclamation,
   FaWandSparkles,
   FaXmark
 } from "react-icons/fa6";
 import { Navigate } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ApiError,
   apiRequest,
@@ -47,6 +50,70 @@ import {
 } from "../components/ui";
 import { ChunkingSchema } from "../components/chunk-schema";
 import { RAG_QUESTION_SETS } from "../rag-question-sets";
+
+function MarkdownAnswer({ content }: { content: string }) {
+  return (
+    <div className="markdown-answer">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h2: ({ children }) => <h2>{children}</h2>,
+          h3: ({ children }) => <h3>{children}</h3>,
+          p: ({ children }) => <p>{children}</p>,
+          ul: ({ children }) => <ul>{children}</ul>,
+          ol: ({ children }) => <ol>{children}</ol>,
+          li: ({ children }) => <li>{children}</li>,
+          blockquote: ({ children }) => (
+            <blockquote>
+              <FaQuoteLeft aria-hidden="true" />
+              <div>{children}</div>
+            </blockquote>
+          ),
+          code: ({ children }) => <code>{children}</code>
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+function RetrievedChunkAccordion({
+  chunk
+}: {
+  chunk: QueryResponse["retrievedChunks"][number];
+}) {
+  return (
+    <Card as="details" className="retrieval-card retrieval-disclosure">
+      <summary
+        aria-label="Afficher le passage source"
+        className="retrieval-disclosure__summary"
+      >
+        <div className="retrieval-disclosure__header">
+          <div className="retrieval-meta">
+            <span className="meta-line">
+              <FaFileLines />
+              <span>{chunk.title}</span>
+            </span>
+            <span className="meta-line">
+              <FaMagnifyingGlass />
+              <span>
+                Source {chunk.id} · Score {chunk.score}
+              </span>
+            </span>
+          </div>
+          <p className="muted-text meta-line">
+            <FaLayerGroup />
+            <span>Groupe : {chunk.group}</span>
+          </p>
+        </div>
+      </summary>
+      <div className="retrieval-disclosure__body">
+        <p>{chunk.content}</p>
+      </div>
+    </Card>
+  );
+}
 
 const getSecretStatusLabel = (
   configured: boolean,
@@ -901,39 +968,48 @@ export function RagQuestionPage() {
             <FaWandSparkles />
             <span>Réponse</span>
           </p>
-          <p>{result?.answer || "Aucune requête envoyée."}</p>
+          {result?.answer ? (
+            <MarkdownAnswer content={result.answer} />
+          ) : (
+            <p>Aucune requête envoyée.</p>
+          )}
         </Card>
 
-        <div className="retrieval-list">
-          {(result?.retrievedChunks || []).map((chunk) => (
-            <Card
-              className="retrieval-card"
-              key={`${chunk.documentId}-${chunk.id}`}
-            >
-              <div className="retrieval-meta">
-                <span className="meta-line">
-                  <FaFileLines />
-                  <span>{chunk.title}</span>
-                </span>
-                <span className="meta-line">
-                  <FaMagnifyingGlass />
-                  <span>Score {chunk.score}</span>
-                </span>
-              </div>
-              <p className="muted-text meta-line">
-                <FaLayerGroup />
-                <span>Groupe : {chunk.group}</span>
+        <div className="retrieval-section">
+          <div className="retrieval-section__header">
+            <div className="flex flex-col gap-1">
+              <p className="answer-label info-line">
+                <FaFileLines />
+                <span>Sources (Passages récupérés)</span>
               </p>
-              <p>{chunk.content}</p>
-            </Card>
-          ))}
+              <p className="m-0 text-sm text-ink-700">
+                Les métadonnées restent visibles. Le contenu détaillé est replié
+                par défaut pour préserver la lecture de la réponse.
+              </p>
+            </div>
+            {result?.retrievedChunks?.length ? (
+              <span className="status-chip">
+                <FaMagnifyingGlass />
+                <span>{result.retrievedChunks.length} chunk(s)</span>
+              </span>
+            ) : null}
+          </div>
 
-          {!result?.retrievedChunks.length ? (
-            <EmptyState icon={<FaMagnifyingGlass />}>
-              Les passages récupérés apparaîtront ici après la première
-              question.
-            </EmptyState>
-          ) : null}
+          <div className="retrieval-list">
+            {(result?.retrievedChunks || []).map((chunk) => (
+              <RetrievedChunkAccordion
+                chunk={chunk}
+                key={`${chunk.documentId}-${chunk.id}`}
+              />
+            ))}
+
+            {!result?.retrievedChunks.length ? (
+              <EmptyState icon={<FaMagnifyingGlass />}>
+                Les passages récupérés apparaîtront ici après la première
+                question.
+              </EmptyState>
+            ) : null}
+          </div>
         </div>
       </Panel>
     </div>

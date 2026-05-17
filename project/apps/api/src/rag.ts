@@ -321,7 +321,16 @@ export const generateAnswer = async (
   retrievedChunks: ChunkMatch[]
 ) => {
   if (!retrievedChunks.length) {
-    return "Je n'ai trouve aucun document accessible suffisamment pertinent pour cette question.";
+    return [
+      "## Reponse courte",
+      "",
+      "Je n'ai trouve aucun document accessible suffisamment pertinent pour cette question.",
+      "",
+      "## Limites",
+      "",
+      "- Aucun passage pertinent n'a ete retrouve dans le contexte autorise.",
+      "- La reponse ne peut pas etre etayee sans sources exploitables."
+    ].join("\n");
   }
 
   const openai = createOpenAIClient(config.openAiApiKey);
@@ -339,7 +348,7 @@ export const generateAnswer = async (
       {
         role: "system",
         content:
-          "Tu es un assistant RAG. Reponds en francais a partir du contexte fourni uniquement. Si l'information manque, dis-le clairement. Cite les sources sous la forme [Source X]."
+          "Tu es un assistant RAG. Reponds en francais a partir du contexte fourni uniquement. Ta sortie doit etre du Markdown simple et stable, sans HTML. Structure toujours ta reponse avec les sections suivantes quand elles sont pertinentes : '## Reponse courte', '## Points cles', '## Limites' si l'information manque ou reste incertaine, puis '## Sources mobilisees'. Dans les sections de contenu, utilise des paragraphes brefs et des listes a puces lorsque cela aide la lecture. Cite les sources uniquement sous la forme [Source X]. N'invente aucune information absente du contexte."
       },
       {
         role: "user",
