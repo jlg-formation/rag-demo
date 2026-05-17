@@ -82,6 +82,30 @@ export type QueryResponse = {
   retrievedChunks: RetrievedChunk[];
 };
 
+export type QuestionSetPurpose = "training" | "benchmark" | "mixed";
+
+export type QuestionCase = {
+  id: string;
+  title: string;
+  question: string;
+  persona: string;
+  allowedGroups: string[];
+  expectedDocuments: string[];
+  mustInclude: string[];
+  mustAvoid: string[];
+  notes: string;
+};
+
+export type QuestionSet = {
+  datasetId: string;
+  version: string;
+  purpose: QuestionSetPurpose;
+  defaultLanguage: string;
+  title: string;
+  description: string;
+  cases: QuestionCase[];
+};
+
 export type DashboardContextValue = {
   user: UserSummary;
   ragConfig: RagConfigSummary;

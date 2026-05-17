@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   FaCircleCheck,
   FaClock,
   FaDatabase,
+  FaListCheck,
   FaEye,
   FaEyeSlash,
   FaFileLines,
@@ -25,7 +26,12 @@ import {
   getChunkUnitLabel,
   useDashboardContext
 } from "../app-shared";
-import type { ChunkMode, QueryResponse, RagConfigSummary } from "../app-types";
+import type {
+  ChunkMode,
+  QueryResponse,
+  QuestionCase,
+  RagConfigSummary
+} from "../app-types";
 import {
   Banner,
   Button,
@@ -36,9 +42,11 @@ import {
   Panel,
   PanelHeading,
   SelectInput,
+  TextArea,
   TextInput
 } from "../components/ui";
 import { ChunkingSchema } from "../components/chunk-schema";
+import { RAG_QUESTION_SETS } from "../rag-question-sets";
 
 const getSecretStatusLabel = (
   configured: boolean,
@@ -531,13 +539,84 @@ export function RagConfigurationPage() {
 }
 
 export function RagQuestionPage() {
-  const { ragConfig, resetAuth } = useDashboardContext();
-  const [question, setQuestion] = useState(
-    "Quels groupes limitent l’accès au contexte dans ce RAG ?"
+  const { user, ragConfig, resetAuth } = useDashboardContext();
+  const trainingSet = useMemo(
+    () =>
+      RAG_QUESTION_SETS.find(
+        (questionSet) => questionSet.purpose === "training"
+      ) || null,
+    []
+  );
+  const benchmarkSet = useMemo(
+    () =>
+      RAG_QUESTION_SETS.find(
+        (questionSet) => questionSet.purpose === "benchmark"
+      ) || null,
+    []
   );
   const [result, setResult] = useState<QueryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isQuerying, setIsQuerying] = useState(false);
+  const [question, setQuestion] = useState("");
+
+  const isCaseAccessible = (questionCase: QuestionCase) =>
+    user.isAdmin ||
+    questionCase.allowedGroups.some((group) => user.groups.includes(group));
+
+  const starterQuestions = useMemo(
+    () => (trainingSet?.cases || []).filter(isCaseAccessible).slice(0, 6),
+    [trainingSet, user]
+  );
+  const accessibleBenchmarkCases = useMemo(
+    () => (benchmarkSet?.cases || []).filter(isCaseAccessible),
+    [benchmarkSet, user]
+  );
+  const [selectedBenchmarkCaseId, setSelectedBenchmarkCaseId] = useState("");
+  const selectedBenchmarkCase = useMemo(
+    () =>
+      accessibleBenchmarkCases.find(
+        (questionCase) => questionCase.id === selectedBenchmarkCaseId
+      ) ||
+      accessibleBenchmarkCases[0] ||
+      null,
+    [accessibleBenchmarkCases, selectedBenchmarkCaseId]
+  );
+  const [evaluatedBenchmarkCaseId, setEvaluatedBenchmarkCaseId] = useState<
+    string | null
+  >(null);
+  const evaluatedBenchmarkCase = useMemo(
+    () =>
+      accessibleBenchmarkCases.find(
+        (questionCase) => questionCase.id === evaluatedBenchmarkCaseId
+      ) || null,
+    [accessibleBenchmarkCases, evaluatedBenchmarkCaseId]
+  );
+
+  useEffect(() => {
+    const firstCaseId = accessibleBenchmarkCases[0]?.id || "";
+    setSelectedBenchmarkCaseId((current) => {
+      if (!accessibleBenchmarkCases.length) {
+        return "";
+      }
+
+      return accessibleBenchmarkCases.some(
+        (questionCase) => questionCase.id === current
+      )
+        ? current
+        : firstCaseId;
+    });
+  }, [accessibleBenchmarkCases]);
+
+  useEffect(() => {
+    if (
+      evaluatedBenchmarkCaseId &&
+      !accessibleBenchmarkCases.some(
+        (questionCase) => questionCase.id === evaluatedBenchmarkCaseId
+      )
+    ) {
+      setEvaluatedBenchmarkCaseId(null);
+    }
+  }, [accessibleBenchmarkCases, evaluatedBenchmarkCaseId]);
 
   const handleUnauthorized = (error: unknown) => {
     if (error instanceof ApiError && error.status === 401) {
@@ -545,16 +624,23 @@ export function RagQuestionPage() {
     }
   };
 
-  const handleQuery = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const runQuery = async (questionText: string) => {
+    const normalizedQuestion = questionText.trim();
+
+    if (!normalizedQuestion) {
+      setError("La question est obligatoire.");
+      return;
+    }
+
     setIsQuerying(true);
     setError(null);
 
     try {
       const payload = await apiRequest<QueryResponse>("/api/rag/query", {
         method: "POST",
-        body: JSON.stringify({ question })
+        body: JSON.stringify({ question: normalizedQuestion })
       });
+      setQuestion(normalizedQuestion);
       setResult(payload);
     } catch (error) {
       handleUnauthorized(error);
@@ -563,6 +649,14 @@ export function RagQuestionPage() {
       setIsQuerying(false);
     }
   };
+
+  const handleQuery = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setEvaluatedBenchmarkCaseId(null);
+    await runQuery(question);
+  };
+
+  const questionIsEmpty = !question.trim();
 
   return (
     <div className="page-grid">
@@ -589,28 +683,219 @@ export function RagQuestionPage() {
           title="Question RAG"
         />
 
-        <form className="subpanel" onSubmit={handleQuery}>
-          <Field label="Question">
-            <TextInput
-              value={question}
-              onChange={(event) => setQuestion(event.target.value)}
-              type="text"
-            />
-          </Field>
-
-          <Button
-            disabled={isQuerying || !ragConfig.configured}
-            fullWidth
-            type="submit"
-          >
-            <FaWandSparkles />
-            <span>
-              {isQuerying
-                ? "Interrogation…"
-                : "Interroger les documents autorisés"}
+        <Card className="question-composer-card">
+          <div className="question-composer-card__header">
+            <div className="flex flex-col gap-2">
+              <p className="answer-label info-line">
+                <FaWandSparkles />
+                <span>Posez une question</span>
+              </p>
+              <p className="m-0 text-sm text-ink-700">
+                Saisissez votre demande ou partez d'un exemple. La réponse ne
+                s'appuiera que sur les documents autorisés pour votre compte.
+              </p>
+            </div>
+            <span className="status-chip is-ready">
+              <FaShieldHalved />
+              <span>Accès filtré par groupe</span>
             </span>
-          </Button>
-        </form>
+          </div>
+
+          <form className="question-composer-form" onSubmit={handleQuery}>
+            <Field label="Votre question">
+              <TextArea
+                placeholder="Ex. Quels éléments du corpus décrivent le parcours d'admission d'un patient ?"
+                rows={4}
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+              />
+            </Field>
+
+            <div className="question-composer-card__actions">
+              <Button
+                disabled={
+                  isQuerying || !ragConfig.configured || questionIsEmpty
+                }
+                type="submit"
+              >
+                <FaWandSparkles />
+                <span>{isQuerying ? "Interrogation…" : "Interroger"}</span>
+              </Button>
+              <p className="muted-text meta-line m-0">
+                <FaMagnifyingGlass />
+                <span>
+                  Les passages les plus pertinents apparaissent sous la réponse.
+                </span>
+              </p>
+            </div>
+          </form>
+
+          {starterQuestions.length ? (
+            <div className="suggested-questions">
+              <div className="suggested-questions__header">
+                <div className="flex flex-col gap-1">
+                  <p className="m-0 text-sm font-semibold text-ink-900">
+                    Exemples de demarrage
+                  </p>
+                  <p className="m-0 text-sm text-ink-700">
+                    Raccourcis utiles pour lancer rapidement une premiere
+                    requete.
+                  </p>
+                </div>
+                {trainingSet ? (
+                  <span className="status-chip">
+                    <FaListCheck />
+                    <span>{trainingSet.title}</span>
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="suggested-questions__grid">
+                {starterQuestions.map((questionCase) => (
+                  <button
+                    className="suggestion-card"
+                    disabled={!ragConfig.configured || isQuerying}
+                    key={questionCase.id}
+                    type="button"
+                    onClick={async () => {
+                      setEvaluatedBenchmarkCaseId(null);
+                      await runQuery(questionCase.question);
+                    }}
+                  >
+                    <span className="suggestion-card__title">
+                      {questionCase.title}
+                    </span>
+                    <span className="suggestion-card__question">
+                      {questionCase.question}
+                    </span>
+                    <span className="suggestion-card__meta">
+                      <FaLayerGroup />
+                      <span>{questionCase.allowedGroups.join(", ")}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {accessibleBenchmarkCases.length ? (
+            <details className="benchmark-disclosure">
+              <summary className="benchmark-disclosure__summary">
+                <div className="flex flex-col gap-1">
+                  <p className="m-0 text-sm font-semibold text-ink-900">
+                    Benchmark et evaluation
+                  </p>
+                  <p className="m-0 text-sm text-ink-700">
+                    Outil secondaire pour comparer une reponse a un cas de
+                    reference.
+                  </p>
+                </div>
+                <span className="status-chip is-neutral">
+                  <FaListCheck />
+                  <span>Secondaire</span>
+                </span>
+              </summary>
+
+              <div className="benchmark-disclosure__body">
+                <div className="benchmark-toolbar">
+                  <Field label="Cas de benchmark">
+                    <SelectInput
+                      value={selectedBenchmarkCase?.id || ""}
+                      onChange={(event) =>
+                        setSelectedBenchmarkCaseId(event.target.value)
+                      }
+                    >
+                      {accessibleBenchmarkCases.map((questionCase) => (
+                        <option key={questionCase.id} value={questionCase.id}>
+                          {questionCase.title}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+
+                  <div className="benchmark-toolbar__actions">
+                    <Button
+                      disabled={
+                        !ragConfig.configured ||
+                        isQuerying ||
+                        !selectedBenchmarkCase
+                      }
+                      type="button"
+                      variant="secondary"
+                      onClick={async () => {
+                        if (!selectedBenchmarkCase) {
+                          return;
+                        }
+
+                        setEvaluatedBenchmarkCaseId(selectedBenchmarkCase.id);
+                        await runQuery(selectedBenchmarkCase.question);
+                      }}
+                    >
+                      <FaWandSparkles />
+                      <span>Lancer ce benchmark</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {selectedBenchmarkCase ? (
+                  <Card className="compact-card benchmark-card">
+                    <p className="m-0 text-sm font-semibold text-ink-900">
+                      {selectedBenchmarkCase.question}
+                    </p>
+                    <p className="m-0 text-sm text-ink-700">
+                      {selectedBenchmarkCase.notes}
+                    </p>
+                  </Card>
+                ) : null}
+
+                {evaluatedBenchmarkCase ? (
+                  <Card className="compact-card benchmark-card">
+                    <p className="answer-label info-line">
+                      <FaCircleCheck />
+                      <span>Cadre d'evaluation</span>
+                    </p>
+                    <p className="m-0 text-sm text-ink-700">
+                      Dernier cas lance : {evaluatedBenchmarkCase.title}
+                    </p>
+
+                    <div className="benchmark-grid">
+                      <div>
+                        <p className="benchmark-card__label">
+                          Documents attendus
+                        </p>
+                        <ul className="benchmark-list">
+                          {evaluatedBenchmarkCase.expectedDocuments.map(
+                            (document) => (
+                              <li key={document}>{document}</li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="benchmark-card__label">
+                          Doit idealement couvrir
+                        </p>
+                        <ul className="benchmark-list">
+                          {evaluatedBenchmarkCase.mustInclude.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="benchmark-card__label">Doit eviter</p>
+                        <ul className="benchmark-list">
+                          {evaluatedBenchmarkCase.mustAvoid.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </Card>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
+        </Card>
 
         <Card className="answer-card">
           <p className="answer-label info-line">

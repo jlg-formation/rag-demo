@@ -1,0 +1,42 @@
+{
+  "datasetId": "benchmark-v1",
+  "version": "1.0.0",
+  "purpose": "benchmark",
+  "defaultLanguage": "fr",
+  "title": "Exemple de benchmark",
+  "description": "Exemple minimal illustrant la structure recommandee pour un jeu de questions RAG.",
+  "cases": [
+    {
+      "id": "patients-admission-001",
+      "title": "Admission et parcours patient",
+      "question": "Quelles etapes structurent l'admission et le parcours administratif d'un patient ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["patients"],
+      "expectedDocuments": ["patients/01-admission-parcours.md"],
+      "mustInclude": [
+        "admission",
+        "parcours administratif",
+        "information du patient"
+      ],
+      "mustAvoid": [
+        "reference a un groupe non autorise",
+        "affirmation sans ancrage documentaire"
+      ],
+      "notes": "Cas simple de decouverte pour verifier la pertinence de la recuperation sur le groupe patients."
+    },
+    {
+      "id": "dsi-pra-001",
+      "title": "Sauvegardes, PRA et PCA",
+      "question": "Quels principes encadrent les sauvegardes, le PRA et le PCA dans le corpus DSI ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["dsi"],
+      "expectedDocuments": ["dsi/sauvegardes-pra-pca.md"],
+      "mustInclude": ["sauvegardes", "pra", "pca"],
+      "mustAvoid": [
+        "contenu issu de documents RH",
+        "reponse hors perimetre DSI"
+      ],
+      "notes": "Cas benchmark simple pour verifier le cloisonnement et la capacite de synthese du systeme."
+    }
+  ]
+}

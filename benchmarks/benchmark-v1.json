@@ -1,0 +1,124 @@
+{
+  "datasetId": "benchmark-v1",
+  "version": "1.0.0",
+  "purpose": "benchmark",
+  "defaultLanguage": "fr",
+  "title": "Benchmark inter-groupes",
+  "description": "Jeu de questions plus strict pour comparer la recuperation et la reponse sur des cas stables, avec attentes explicites et points de vigilance.",
+  "cases": [
+    {
+      "id": "bench-patients-sortie-001",
+      "title": "Sortie, droits et mediation",
+      "question": "Que dit le corpus patients sur la sortie, les droits et la mediation ?",
+      "persona": "evaluateur",
+      "allowedGroups": ["patients"],
+      "expectedDocuments": ["patients/03-sortie-droits-mediation.md"],
+      "mustInclude": ["sortie", "droits", "mediation"],
+      "mustAvoid": ["contenu RH", "contenu admin"],
+      "notes": "Verifier la restitution de trois notions proches sans sortir du perimetre patients."
+    },
+    {
+      "id": "bench-patients-telesuivi-001",
+      "title": "FAQ telesuivi",
+      "question": "Quelles questions recurrentes et quelles reponses le corpus patients associe-t-il au telesuivi ?",
+      "persona": "evaluateur",
+      "allowedGroups": ["patients"],
+      "expectedDocuments": ["patients/04-faq-telesuivi.md"],
+      "mustInclude": ["telesuivi", "questions frequentes", "reponses"],
+      "mustAvoid": ["details d'infrastructure reseau"],
+      "notes": "Cas tres pratique pour comparer la qualite d'une synthese issue d'une FAQ."
+    },
+    {
+      "id": "bench-docteurs-prescriptions-001",
+      "title": "Prescriptions et tracabilite",
+      "question": "Quels principes de prescriptions, de tracabilite et de qualite ressortent du corpus des docteurs ?",
+      "persona": "evaluateur",
+      "allowedGroups": ["docteurs"],
+      "expectedDocuments": ["docteurs/prescriptions-tracabilite-qualite.md"],
+      "mustInclude": ["prescriptions", "tracabilite", "qualite"],
+      "mustAvoid": ["reponse limitee a une seule notion"],
+      "notes": "Verifier que la reponse couvre bien les trois axes et ne reduit pas le sujet a la seule prescription."
+    },
+    {
+      "id": "bench-docteurs-rcc-001",
+      "title": "Concertation et coordination",
+      "question": "Comment le corpus docteurs encadre-t-il les reunions de concertation et de coordination ?",
+      "persona": "evaluateur",
+      "allowedGroups": ["docteurs"],
+      "expectedDocuments": [
+        "docteurs/reunions-concertation-et-coordination.md"
+      ],
+      "mustInclude": ["concertation", "coordination", "reunions"],
+      "mustAvoid": ["vocabulaire purement budgetaire"],
+      "notes": "Permet de verifier le bon rattachement d'un sujet transverse au bon groupe metier."
+    },
+    {
+      "id": "bench-dsi-iam-001",
+      "title": "IAM, postes et reseau",
+      "question": "Comment le corpus DSI articule-t-il les enjeux IAM, postes et reseau ?",
+      "persona": "evaluateur",
+      "allowedGroups": ["dsi"],
+      "expectedDocuments": ["dsi/iam-postes-reseau.md"],
+      "mustInclude": ["IAM", "postes", "reseau"],
+      "mustAvoid": ["confondre IAM et RH"],
+      "notes": "Utile pour verifier la precision du vocabulaire technique sur un triptyque frequemment mal resume."
+    },
+    {
+      "id": "bench-dsi-incidents-001",
+      "title": "Incidents et projets applicatifs",
+      "question": "Quels principes d'organisation des incidents et des projets applicatifs figurent dans le corpus DSI ?",
+      "persona": "evaluateur",
+      "allowedGroups": ["dsi"],
+      "expectedDocuments": ["dsi/incidents-projets-applicatifs.md"],
+      "mustInclude": ["incidents", "projets applicatifs", "organisation"],
+      "mustAvoid": ["sortir vers le PRA sans justification"],
+      "notes": "Cas stable pour mesurer la capacite de synthese sur deux sujets voisins mais distincts."
+    },
+    {
+      "id": "bench-rh-formation-001",
+      "title": "Formation, mobilite, entretiens",
+      "question": "Comment le corpus RH relie-t-il la formation, la mobilite et les entretiens ?",
+      "persona": "evaluateur",
+      "allowedGroups": ["ressources-humaines"],
+      "expectedDocuments": [
+        "ressources-humaines/formation-mobilite-et-entretiens.md"
+      ],
+      "mustInclude": ["formation", "mobilite", "entretiens"],
+      "mustAvoid": ["reponse concentree uniquement sur la formation"],
+      "notes": "Verifier une couverture equilibrée des trois notions."
+    },
+    {
+      "id": "bench-rh-qvct-001",
+      "title": "QVCT et discipline",
+      "question": "Quels equilibres le corpus RH etablit-il entre QVCT et discipline ?",
+      "persona": "evaluateur",
+      "allowedGroups": ["ressources-humaines"],
+      "expectedDocuments": ["ressources-humaines/qvct-et-discipline.md"],
+      "mustInclude": ["QVCT", "discipline", "equilibre"],
+      "mustAvoid": ["ton normatif invente"],
+      "notes": "Cas utile pour mesurer la nuance et la prudence de la reponse."
+    },
+    {
+      "id": "bench-admin-conformite-001",
+      "title": "Conformite et strategie numerique",
+      "question": "Comment le corpus admin articule-t-il conformite et strategie numerique ?",
+      "persona": "evaluateur",
+      "allowedGroups": ["admin"],
+      "expectedDocuments": ["admin/conformite-strategie-numerique-admin.md"],
+      "mustInclude": ["conformite", "strategie numerique"],
+      "mustAvoid": ["details techniques non documentes"],
+      "notes": "Permet de verifier si la reponse reste a un niveau de gouvernance coherent."
+    },
+    {
+      "id": "bench-admin-fournisseurs-001",
+      "title": "Fournisseurs et continuite",
+      "question": "Que dit le corpus admin sur les fournisseurs, la continuite et les retours d'experience ?",
+      "persona": "evaluateur",
+      "allowedGroups": ["admin"],
+      "expectedDocuments": ["admin/fournisseurs-continuite-retours-admin.md"],
+      "mustInclude": ["fournisseurs", "continuite", "retours d'experience"],
+      "mustAvoid": ["reponse purement contractuelle"],
+      "notes": "Cas benchmark utile pour voir si le modele couvre bien les trois dimensions du titre."
+    }
+  ]
+}

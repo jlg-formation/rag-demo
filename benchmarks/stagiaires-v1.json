@@ -1,0 +1,126 @@
+{
+  "datasetId": "stagiaires-v1",
+  "version": "1.0.0",
+  "purpose": "training",
+  "defaultLanguage": "fr",
+  "title": "Parcours guide stagiaires",
+  "description": "Questions pretes a l'emploi pour aider les stagiaires a explorer le corpus sans devoir formuler eux-memes leurs premiers prompts.",
+  "cases": [
+    {
+      "id": "patients-admission-001",
+      "title": "Admission et parcours",
+      "question": "Quelles etapes structurent l'admission et le parcours administratif d'un patient ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["patients"],
+      "expectedDocuments": ["patients/01-admission-parcours.md"],
+      "mustInclude": [
+        "admission",
+        "parcours administratif",
+        "information du patient"
+      ],
+      "mustAvoid": ["contenu hors groupe patients"],
+      "notes": "Question d'entree de gamme pour verifier que la reponse reste lisible et bien ancree dans le parcours patient."
+    },
+    {
+      "id": "patients-consentement-001",
+      "title": "Consentement et examens",
+      "question": "Comment le corpus patients presente-t-il le consentement et l'information avant un examen ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["patients"],
+      "expectedDocuments": ["patients/02-consentement-examens.md"],
+      "mustInclude": ["consentement", "information prealable", "examen"],
+      "mustAvoid": ["prescriptions medicales detaillees"],
+      "notes": "Utile pour verifier une reponse pedagogique et bien contextualisee."
+    },
+    {
+      "id": "docteurs-protocoles-001",
+      "title": "Protocoles cliniques",
+      "question": "Quels principes encadrent les protocoles cliniques dans le corpus des docteurs ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["docteurs"],
+      "expectedDocuments": ["docteurs/protocoles-cliniques-docteurs.md"],
+      "mustInclude": ["protocoles cliniques", "qualite", "cadre de pratique"],
+      "mustAvoid": ["contenu RH", "contenu DSI"],
+      "notes": "Question metier simple pour lancer un premier echange avec le role docteur."
+    },
+    {
+      "id": "docteurs-gardes-001",
+      "title": "Gardes et astreintes",
+      "question": "Comment sont organisees les gardes et les astreintes pour les docteurs dans ce corpus ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["docteurs"],
+      "expectedDocuments": ["docteurs/organisation-gardes-et-astreintes.md"],
+      "mustInclude": ["gardes", "astreintes", "organisation"],
+      "mustAvoid": ["reponse purement technique"],
+      "notes": "Cas utile pour verifier qu'un sujet tres operationnel reste bien traite."
+    },
+    {
+      "id": "dsi-architecture-001",
+      "title": "Architecture et supervision",
+      "question": "Quelles priorites ressortent en matiere d'architecture et de supervision dans le corpus DSI ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["dsi"],
+      "expectedDocuments": ["dsi/architecture-supervision.md"],
+      "mustInclude": ["architecture", "supervision", "priorites"],
+      "mustAvoid": ["contenu patient"],
+      "notes": "Permet d'observer la qualite d'une synthese technique a partir d'un document de gouvernance DSI."
+    },
+    {
+      "id": "dsi-pra-001",
+      "title": "Sauvegardes, PRA et PCA",
+      "question": "Quels principes encadrent les sauvegardes, le PRA et le PCA dans le corpus DSI ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["dsi"],
+      "expectedDocuments": ["dsi/sauvegardes-pra-pca.md"],
+      "mustInclude": ["sauvegardes", "PRA", "PCA"],
+      "mustAvoid": ["hors perimetre DSI"],
+      "notes": "Question canonique pour une demo RAG sur un corpus informatique."
+    },
+    {
+      "id": "rh-recrutement-001",
+      "title": "Recrutement et integration",
+      "question": "Comment le corpus RH decrit-il le recrutement et l'integration des nouveaux arrivants ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["ressources-humaines"],
+      "expectedDocuments": [
+        "ressources-humaines/recrutement-et-integration.md"
+      ],
+      "mustInclude": ["recrutement", "integration", "nouveaux arrivants"],
+      "mustAvoid": ["elements cliniques"],
+      "notes": "Bon point d'entree pour un stagiaire non technique."
+    },
+    {
+      "id": "rh-temps-001",
+      "title": "Temps de travail et absences",
+      "question": "Quels reperes le corpus RH donne-t-il sur le temps de travail et les absences ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["ressources-humaines"],
+      "expectedDocuments": ["ressources-humaines/temps-travail-et-absences.md"],
+      "mustInclude": ["temps de travail", "absences", "reperes"],
+      "mustAvoid": ["reponse sans source metier"],
+      "notes": "Question utile pour des comparaisons entre formulations proches."
+    },
+    {
+      "id": "admin-gouvernance-001",
+      "title": "Gouvernance et comites",
+      "question": "Comment le corpus admin presente-t-il la gouvernance et les comites de pilotage ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["admin"],
+      "expectedDocuments": ["admin/gouvernance-et-comites-admin.md"],
+      "mustInclude": ["gouvernance", "comites", "pilotage"],
+      "mustAvoid": ["details purement techniques DSI"],
+      "notes": "Montre comment la demo repond sur un contenu de pilotage et non operationnel."
+    },
+    {
+      "id": "admin-budget-001",
+      "title": "Budget et arbitrages",
+      "question": "Quels themes de budget et d'arbitrages sont abordes dans le corpus admin ?",
+      "persona": "stagiaire",
+      "allowedGroups": ["admin"],
+      "expectedDocuments": ["admin/budget-et-arbitrages-admin.md"],
+      "mustInclude": ["budget", "arbitrages", "priorisation"],
+      "mustAvoid": ["inventer des montants absents"],
+      "notes": "Question de synthese simple, utile pour benchmarker la prudence du modele."
+    }
+  ]
+}
