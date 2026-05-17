@@ -201,19 +201,18 @@ Important :
 
 ## Étape 5 - Installer le code applicatif sur le VPS
 
-Choisissez un répertoire de travail simple dans le compte `debian`, par exemple `$HOME/rag-demo`.
+Le dépôt crée lui-même le répertoire `rag-demo`. Il faut donc se placer dans `$HOME`, puis cloner le dépôt dans un dossier nommé `rag-demo`.
 
 Sur le VPS :
 
 ```bash
-mkdir -p "$HOME/rag-demo"
-cd "$HOME/rag-demo"
-git clone URL_DU_DEPOT .
+cd "$HOME"
+git clone https://github.com/jlg-formation/rag-demo rag-demo
 ```
 
 Si votre dépôt n'est pas clonable depuis le VPS, alternative :
 
-1. copiez le dépôt manuellement dans `$HOME/rag-demo`
+1. copiez le dossier du dépôt dans `$HOME/rag-demo`
 2. vérifiez ensuite que le sous-dossier `project/` existe bien
 
 ## Étape 6 - Préparer l'environnement de production Docker
