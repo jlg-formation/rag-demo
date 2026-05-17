@@ -68,11 +68,12 @@ Le `package.json` racine sert de point d'entree unique pour piloter la demo et l
   ```
 
 - `bun run content:import:dry-run`
-  Analyse le contenu de `content/`, calcule la volumetrie, liste les groupes detectes et montre les comptes techniques qui seraient utilises pour l'import, sans rien envoyer a l'API.
+  Analyse le contenu de `content/`, calcule la volumetrie, liste les groupes detectes et montre les comptes techniques qui seraient utilises pour l'import, sans rien envoyer a l'API. Ce mode peut etre lance seul depuis la racine du depot, meme si le backend n'est pas demarre.
 
 - `bun run content:import`
   Importe en lot les documents presents dans `content/` vers l'API locale sur `http://localhost:3000`. Le script cree au besoin des groupes et des comptes techniques dedies de type `import-<groupe>@demo.local`.
   La progression s'affiche dans le terminal en pourcentage, fichier par fichier, jusqu'a 100 %.
+  Pour un serveur VPS avec un compte administrateur personnalise, utilisez plutot le script avec des arguments explicites, par exemple : `node ./tools/bulk-import-content.mjs --api http://127.0.0.1:3000 --content ./content --admin-email admin@jlg-consulting.com --admin-password <mot-de-passe>`.
 
 ## Demarrage rapide
 

@@ -332,14 +332,41 @@ const buildImporterIdentity = (group) => ({
   displayName: `Import ${group}`
 });
 
-const main = async () => {
-  const args = parseArgs(process.argv);
-  const health = await fetchJson({
-    apiBaseUrl: args.apiBaseUrl,
-    endpoint: "/api/health",
-    cookie: ""
+const resolveDryRunChunkingConfig = ({ args }) => {
+  if (
+    args.chunkMode === undefined &&
+    args.chunkSize === undefined &&
+    args.chunkOverlap === undefined
+  ) {
+    return null;
+  }
+
+  if (
+    args.chunkMode === undefined ||
+    args.chunkSize === undefined ||
+    args.chunkOverlap === undefined
+  ) {
+    throw new Error(
+      "En dry-run hors backend, --chunk-mode, --chunk-size et --chunk-overlap doivent etre fournis ensemble."
+    );
+  }
+
+  validateChunkingConfig({
+    chunkSize: args.chunkSize,
+    chunkOverlap: args.chunkOverlap
   });
 
+  return {
+    chunkMode: args.chunkMode,
+    chunkSize: args.chunkSize,
+    chunkOverlap: args.chunkOverlap,
+    source: "CLI",
+    backendConfigured: false
+  };
+};
+
+const main = async () => {
+  const args = parseArgs(process.argv);
   const groups = await listGroupFiles(args.contentDir);
   if (!groups.length) {
     throw new Error(
@@ -361,26 +388,19 @@ const main = async () => {
     0
   );
 
-  const adminCookie = await login({
-    apiBaseUrl: args.apiBaseUrl,
-    email: args.adminEmail,
-    password: args.adminPassword
-  });
-  const ragConfig = await fetchRagConfig({
-    apiBaseUrl: args.apiBaseUrl,
-    cookie: adminCookie
-  });
-  const chunkingConfig = resolveChunkingConfig({ args, ragConfig });
-
-  logChunkingConfig(chunkingConfig);
-
   if (args.dryRun) {
+    const chunkingConfig = resolveDryRunChunkingConfig({ args });
+
+    if (chunkingConfig) {
+      logChunkingConfig(chunkingConfig);
+    }
+
     console.log(
       JSON.stringify(
         {
           mode: "dry-run",
           apiBaseUrl: args.apiBaseUrl,
-          ragConfigured: health.ragConfigured,
+          ragConfigured: null,
           chunking: chunkingConfig,
           groups: groups.map((group) => ({
             name: group.name,
@@ -397,6 +417,25 @@ const main = async () => {
     );
     return;
   }
+
+  const health = await fetchJson({
+    apiBaseUrl: args.apiBaseUrl,
+    endpoint: "/api/health",
+    cookie: ""
+  });
+
+  const adminCookie = await login({
+    apiBaseUrl: args.apiBaseUrl,
+    email: args.adminEmail,
+    password: args.adminPassword
+  });
+  const ragConfig = await fetchRagConfig({
+    apiBaseUrl: args.apiBaseUrl,
+    cookie: adminCookie
+  });
+  const chunkingConfig = resolveChunkingConfig({ args, ragConfig });
+
+  logChunkingConfig(chunkingConfig);
 
   if (!health.ragConfigured) {
     throw new Error(
@@ -496,31 +535,6 @@ const main = async () => {
       2
     )
   );
-  return;
-
-  if (args.dryRun) {
-    console.log(
-      JSON.stringify(
-        {
-          mode: "dry-run",
-          apiBaseUrl: args.apiBaseUrl,
-          ragConfigured: health.ragConfigured,
-          chunking: null,
-          groups: groups.map((group) => ({
-            name: group.name,
-            files: group.files.length,
-            bytes: group.files.reduce((sum, file) => sum + file.size, 0),
-            importer: buildImporterIdentity(group.name).email
-          })),
-          totalFiles,
-          totalBytes
-        },
-        null,
-        2
-      )
-    );
-    return;
-  }
 
   if (!health.ragConfigured) {
     throw new Error(
